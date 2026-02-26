@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import BackgroundTasks, FastAPI
 from llama_cpp import Llama
 
-from .context_providers import GlobalContextProvider, LocalContextProvider
+from .context_providers import GlobalContextProvider, LocalContextProvider, SoulElementProvider
 from .memory import MemoryManager, fallback_turn_summary, generate_turn_summary_prompt
 from .models import (
     ChatRequest,
@@ -69,10 +69,12 @@ def _init_assembler():
     global _assembler
     global_provider = GlobalContextProvider()
     local_provider = LocalContextProvider()
+    soul_provider = SoulElementProvider()
     _assembler = PromptAssembler(
         llm=_llm,
         global_provider=global_provider,
         local_provider=local_provider,
+        soul_provider=soul_provider,
     )
     logger.info("PromptAssembler initialized")
 
@@ -112,7 +114,7 @@ async def lifespan(app: FastAPI):
             pass
 
 
-app = FastAPI(title="NPC LLM Sidecar", version="2.5.0", lifespan=lifespan)
+app = FastAPI(title="NPC LLM Sidecar", version="3.0.0", lifespan=lifespan)
 
 
 @app.get("/v1/health")
@@ -125,6 +127,21 @@ async def health():
     if _memory:
         status.update(_memory.health_status())
     return status
+
+
+@app.post("/v1/config/reload")
+async def reload_config():
+    """Hot-reload all config files without container restart."""
+    errors: list[str] = []
+    try:
+        _init_assembler()
+    except Exception as e:
+        errors.append(f"assembler: {e}")
+        logger.error("Config reload failed for assembler: %s", e)
+
+    if errors:
+        return {"status": "partial", "errors": errors}
+    return {"status": "reloaded"}
 
 
 def _generate_turn_summary(req: ChatRequest, npc_response: str) -> str:

@@ -1,5 +1,5 @@
 # docker-compose.npc-llm.yml
-# LLM sidecar for NPC conversation feature (Phase 1: Foundation + Phase 2: Memory + Phase 2.5: Context Architecture)
+# LLM sidecar for NPC conversation feature (Phase 1: Foundation + Phase 2: Memory + Phase 2.5: Context Architecture + Phase 3: Soul & Story)
 # Opt-in overlay — does NOT modify the base stack
 #
 # Usage:
@@ -49,12 +49,16 @@ services:
       # SOUL and MEMORY are dynamic; GLOBAL and LOCAL are file-loaded at startup.
       - LLM_BUDGET_GLOBAL=${LLM_BUDGET_GLOBAL:-200}
       - LLM_BUDGET_LOCAL=${LLM_BUDGET_LOCAL:-150}
-      - LLM_BUDGET_SOUL=${LLM_BUDGET_SOUL:-0}
+      - LLM_BUDGET_SOUL=${LLM_BUDGET_SOUL:-150}
       - LLM_BUDGET_MEMORY=${LLM_BUDGET_MEMORY:-200}
       - LLM_BUDGET_RESPONSE=${LLM_BUDGET_RESPONSE:-500}
+      # Phase 3: Quest hint budget for Tier 2 NPC LLM fallback
+      - LLM_BUDGET_QUEST_HINTS=${LLM_BUDGET_QUEST_HINTS:-150}
       # Phase 2.5: Context file paths (mounted read-only via ./npc-llm-sidecar/config:/config)
       - GLOBAL_CONTEXTS_PATH=${GLOBAL_CONTEXTS_PATH:-/config/global_contexts.json}
       - LOCAL_CONTEXTS_PATH=${LOCAL_CONTEXTS_PATH:-/config/local_contexts.json}
+      # Phase 3: Soul element config path
+      - SOUL_ELEMENTS_PATH=${SOUL_ELEMENTS_PATH:-/config/soul_elements.json}
     volumes:
       - ./npc-llm-sidecar/models:/models:ro
       - ./npc-llm-sidecar/config:/config:ro
