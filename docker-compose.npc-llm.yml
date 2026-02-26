@@ -1,0 +1,78 @@
+# docker-compose.npc-llm.yml
+# LLM sidecar for NPC conversation feature (Phase 1: Foundation + Phase 2: Memory + Phase 2.5: Context Architecture)
+# Opt-in overlay — does NOT modify the base stack
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.npc-llm.yml up -d
+# Or via Makefile:
+#   make up-llm
+#
+# Requires model file at: ./npc-llm-sidecar/models/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf
+
+networks:
+  backend:
+    driver: ${NETWORKS_DRIVER}
+
+services:
+  npc-llm:
+    build:
+      context: ./npc-llm-sidecar
+    container_name: akk-stack-npc-llm-1
+    restart: unless-stopped
+    networks:
+      - backend
+    # No external port binding — internal only via Docker DNS
+    # eqemu-server reaches sidecar at http://npc-llm:8100
+    environment:
+      - MODEL_PATH=${LLM_MODEL_PATH:-/models/Mistral-7B-Instruct-v0.3-Q4_K_M.gguf}
+      - LLM_PORT=${LLM_PORT:-8100}
+      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-200}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.7}
+      - LLM_N_GPU_LAYERS=${LLM_N_GPU_LAYERS:-99}
+      - LLM_N_CTX=${LLM_N_CTX:-2048}
+      - LLM_N_THREADS=${LLM_N_THREADS:-6}
+      - PYTHONUNBUFFERED=1
+      - TZ=${TZ:-US/Eastern}
+      # Phase 2: ChromaDB conversation memory (embedded, local)
+      # ChromaDB runs inside the sidecar — no API key or external service needed.
+      # Data persists to the /data/chromadb volume mount.
+      - CHROMADB_PATH=${CHROMADB_PATH:-/data/chromadb}
+      - MEMORY_ENABLED=${MEMORY_ENABLED:-true}
+      - MEMORY_TOP_K=${MEMORY_TOP_K:-5}
+      - MEMORY_SCORE_THRESHOLD=${MEMORY_SCORE_THRESHOLD:-0.2}
+      - MEMORY_MAX_PER_PLAYER=${MEMORY_MAX_PER_PLAYER:-100}
+      - MEMORY_TTL_DAYS=${MEMORY_TTL_DAYS:-90}
+      - MEMORY_CLEANUP_INTERVAL_HOURS=${MEMORY_CLEANUP_INTERVAL_HOURS:-24}
+      - LLM_DEBUG_PROMPTS=${LLM_DEBUG_PROMPTS:-false}
+      # Phase 2.5: Token budget controls — per-section limits within LLM_MAX_TOKENS total
+      # These cap how many tokens each context section may contribute to the prompt.
+      # SOUL and MEMORY are dynamic; GLOBAL and LOCAL are file-loaded at startup.
+      - LLM_BUDGET_GLOBAL=${LLM_BUDGET_GLOBAL:-200}
+      - LLM_BUDGET_LOCAL=${LLM_BUDGET_LOCAL:-150}
+      - LLM_BUDGET_SOUL=${LLM_BUDGET_SOUL:-0}
+      - LLM_BUDGET_MEMORY=${LLM_BUDGET_MEMORY:-200}
+      - LLM_BUDGET_RESPONSE=${LLM_BUDGET_RESPONSE:-500}
+      # Phase 2.5: Context file paths (mounted read-only via ./npc-llm-sidecar/config:/config)
+      - GLOBAL_CONTEXTS_PATH=${GLOBAL_CONTEXTS_PATH:-/config/global_contexts.json}
+      - LOCAL_CONTEXTS_PATH=${LOCAL_CONTEXTS_PATH:-/config/local_contexts.json}
+    volumes:
+      - ./npc-llm-sidecar/models:/models:ro
+      - ./npc-llm-sidecar/config:/config:ro
+      - ./npc-llm-sidecar/data:/data
+      - ./npc-llm-sidecar/app:/app/app
+      - ./npc-llm-sidecar/tests:/app/tests:ro
+    deploy:
+      resources:
+        limits:
+          memory: 6g
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:${LLM_PORT:-8100}/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s

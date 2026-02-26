@@ -20,7 +20,7 @@ services:
     image: eqemulator/eqemu-server:v16
     volumes:
       - ./server:/home/eqemu/server:delegated
-      - ./code:/home/eqemu/code:delegated
+      - ../eqemu:/home/eqemu/code:delegated
       - ./assets:/home/eqemu/assets:delegated
       - build-cache:/home/eqemu/.ccache/
       - spire-assets:/home/eqemu/.cache/

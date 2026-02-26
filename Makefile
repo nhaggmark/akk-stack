@@ -27,6 +27,9 @@ DOCKER_COMPOSE_CONTEXT=
 ifeq ("$(ENV)", "development")
 	DOCKER_COMPOSE_CONTEXT = -f docker-compose.yml -f docker-compose.dev.yml
 endif
+ifeq ($(ENABLE_NPC_LLM),true)
+	DOCKER_COMPOSE_CONTEXT += -f docker-compose.npc-llm.yml
+endif
 
 DOCKER=docker-compose $(DOCKER_COMPOSE_CONTEXT)
 
@@ -96,6 +99,10 @@ endif
 
 ifeq ($(ENABLE_BACKUP_CRON),true)
 	RUN_SERVICES+= backup-cron
+endif
+
+ifeq ($(ENABLE_NPC_LLM),true)
+	RUN_SERVICES+= npc-llm
 endif
 
 #----------------------
@@ -230,6 +237,22 @@ down: ##@docker Down all containers
 restart: ##@docker Restart containers
 	make down
 	make up detached
+
+#----------------------
+# npc-llm sidecar
+#----------------------
+
+down-llm: ##@npc-llm Stop LLM sidecar only
+	COMPOSE_HTTP_TIMEOUT=1000 $(DOCKER) stop npc-llm
+
+build-llm: ##@npc-llm Rebuild LLM sidecar image
+	COMPOSE_HTTP_TIMEOUT=1000 $(DOCKER) build npc-llm
+
+logs-llm: ##@npc-llm Tail LLM sidecar logs
+	$(DOCKER) logs -f npc-llm
+
+test-llm: ##@npc-llm Run automated NPC conversation test suite
+	$(DOCKER) exec npc-llm /usr/bin/python3.11 /app/tests/test_suite.py
 
 #----------------------
 # env
