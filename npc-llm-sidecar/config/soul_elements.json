@@ -1,0 +1,38 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "description": "NPC soul elements — personality traits, motivations, and recruitment disposition",
+    "axes": ["courage", "generosity", "honesty", "piety", "curiosity", "loyalty"],
+    "axis_range": "-3 to +3 (0 = neutral, unset = no influence)",
+    "dispositions": ["rooted", "content", "curious", "restless", "eager"],
+    "notes": "Fallback chain: npc_overrides[npc_type_id] > role_defaults[detected_role] > empty. Deity alignment rules and faction political constraints are documented in the PRD."
+  },
+  "role_defaults": {
+    "guard": {
+      "courage": 1,
+      "loyalty": 1,
+      "desires": ["duty"],
+      "fears": ["dishonor"],
+      "disposition": "content"
+    },
+    "merchant": {
+      "generosity": -1,
+      "curiosity": 1,
+      "desires": ["wealth"],
+      "disposition": "content"
+    },
+    "guildmaster": {
+      "piety": 1,
+      "loyalty": 2,
+      "desires": ["knowledge"],
+      "disposition": "rooted"
+    },
+    "priest": {
+      "piety": 2,
+      "generosity": 1,
+      "desires": ["faith"],
+      "disposition": "rooted"
+    }
+  },
+  "npc_overrides": {}
+}
