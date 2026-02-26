@@ -24,6 +24,8 @@ class ChatRequest(BaseModel):
     npc_primary_faction: int = 0  # Primary faction ID for cultural context lookup
     npc_gender: int = 0         # 0=male, 1=female, 2=neutral
     npc_is_merchant: bool = False  # True if NPC class == 41 (Merchant)
+    quest_hints: list[str] | None = None     # Tier 2: hint sentences for quest guidance
+    quest_state: str | None = None           # Tier 2: current quest progress descriptor
 
 
 class ChatResponse(BaseModel):

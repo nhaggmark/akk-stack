@@ -1,28 +1,29 @@
 """prompt_assembler.py
 Layered, token-budgeted system prompt assembler for the NPC LLM sidecar.
 
-Replaces the flat build_system_prompt() call in prompt_builder.py with a
-structured 4-layer pipeline:
+Structured 8-layer prompt pipeline:
   1. Identity + era line        (~50 tokens, fixed)
   2. Global context             (race+class+faction lookup, up to LLM_BUDGET_GLOBAL)
   3. Local context              (zone knowledge at INT tier, up to LLM_BUDGET_LOCAL)
   4. Role framing               (~30 tokens, fixed)
   5. Faction instruction        (existing, fixed)
-  6. Soul elements              (placeholder, 0 tokens in Phase 2.5)
+  5.5 Quest hints               (Tier 2 only, up to LLM_BUDGET_QUEST_HINTS)
+  6. Soul elements              (personality traits + disposition, up to LLM_BUDGET_SOUL)
   7. Memory context             (existing, up to LLM_BUDGET_MEMORY)
   8. Rules block                (existing, always last, never truncated)
 
 Token budget env vars (all optional, have defaults):
-  LLM_BUDGET_GLOBAL    — max tokens for global cultural context  (default: 200)
-  LLM_BUDGET_LOCAL     — max tokens for local zone context       (default: 150)
-  LLM_BUDGET_SOUL      — reserved for Phase 3 soul elements      (default: 0)
-  LLM_BUDGET_MEMORY    — max tokens for memory context           (default: 200)
-  LLM_BUDGET_RESPONSE  — token reserve for LLM response          (default: 500)
+  LLM_BUDGET_GLOBAL       — max tokens for global cultural context  (default: 200)
+  LLM_BUDGET_LOCAL        — max tokens for local zone context       (default: 150)
+  LLM_BUDGET_QUEST_HINTS  — max tokens for quest hint block         (default: 150)
+  LLM_BUDGET_SOUL         — max tokens for soul element text        (default: 0)
+  LLM_BUDGET_MEMORY       — max tokens for memory context           (default: 200)
+  LLM_BUDGET_RESPONSE     — token reserve for LLM response          (default: 500)
 """
 import logging
 import os
 
-from .context_providers import GlobalContextProvider, LocalContextProvider, get_role_frame
+from .context_providers import GlobalContextProvider, LocalContextProvider, SoulElementProvider, get_role_frame
 from .prompt_builder import (
     RACE_NAMES,
     CLASS_NAMES,
@@ -42,23 +43,27 @@ class PromptAssembler:
         llm,
         global_provider: GlobalContextProvider,
         local_provider: LocalContextProvider,
+        soul_provider: SoulElementProvider | None = None,
         budgets: dict | None = None,
     ):
         self.llm = llm  # Llama instance for tokenizer access; may be None
         self.global_provider = global_provider
         self.local_provider = local_provider
+        self.soul_provider = soul_provider
 
         # Token budgets — read from env vars with defaults
         self.budget_global = int(os.environ.get("LLM_BUDGET_GLOBAL", "200"))
         self.budget_local = int(os.environ.get("LLM_BUDGET_LOCAL", "150"))
         self.budget_soul = int(os.environ.get("LLM_BUDGET_SOUL", "0"))
         self.budget_memory = int(os.environ.get("LLM_BUDGET_MEMORY", "200"))
+        self.budget_quest_hints = int(os.environ.get("LLM_BUDGET_QUEST_HINTS", "150"))
 
         if budgets:
             self.budget_global = budgets.get("global", self.budget_global)
             self.budget_local = budgets.get("local", self.budget_local)
             self.budget_soul = budgets.get("soul", self.budget_soul)
             self.budget_memory = budgets.get("memory", self.budget_memory)
+            self.budget_quest_hints = budgets.get("quest_hints", self.budget_quest_hints)
 
     def count_tokens(self, text: str) -> int:
         """Count tokens using the model's tokenizer. Falls back to char estimate."""
@@ -89,6 +94,25 @@ class PromptAssembler:
         # Fallback: hard truncate by character estimate
         char_limit = budget * _CHARS_PER_TOKEN
         return text[:char_limit].rsplit(" ", 1)[0]
+
+    def _build_quest_hint_block(
+        self, quest_hints: list[str], quest_state: str | None = None
+    ) -> str:
+        """Build the quest hint instruction block for Tier 2 NPCs."""
+        lines = [
+            "This person has specific concerns. Here is what you know:",
+        ]
+        for hint in quest_hints:
+            lines.append(f"- {hint}")
+        lines.append(
+            "When responding, try to naturally guide conversation toward these topics."
+        )
+        lines.append(
+            "Include at least one keyword in [brackets] so they can ask about it directly."
+        )
+        if quest_state:
+            lines.append(f"Current situation: {quest_state}")
+        return "\n".join(lines)
 
     def assemble(self, req, memories: list[dict] | None = None) -> str:
         """Build the complete system prompt from all layers with token budgeting.
@@ -154,8 +178,30 @@ class PromptAssembler:
         lines.append(req.faction_instruction)
         lines.append("")
 
-        # --- Layer 6: Soul elements (Phase 3 placeholder — 0 budget) ---
-        # No content here yet. Reserved space in token budget.
+        # --- Layer 5.5: Quest hints (Tier 2 only) ---
+        if req.quest_hints:
+            hint_text = self._build_quest_hint_block(req.quest_hints, req.quest_state)
+            if hint_text:
+                truncated_hints = self._truncate_to_budget(hint_text, self.budget_quest_hints)
+                if truncated_hints:
+                    lines.append(truncated_hints)
+                    lines.append("")
+
+        # --- Layer 6: Soul elements ---
+        soul_text = ""
+        if self.soul_provider and self.budget_soul > 0:
+            soul = self.soul_provider.get_soul(
+                npc_type_id=req.npc_type_id,
+                npc_name=req.npc_name,
+                npc_class=req.npc_class,
+                is_merchant=req.npc_is_merchant,
+            )
+            if soul:
+                soul_text = self.soul_provider.format_soul_text(soul, req.npc_deity)
+                truncated_soul = self._truncate_to_budget(soul_text, self.budget_soul)
+                if truncated_soul:
+                    lines.append(truncated_soul)
+                    lines.append("")
 
         # --- Layer 7: Memory context (existing, now token-budgeted) ---
         if memories:
@@ -213,10 +259,11 @@ class PromptAssembler:
         if os.environ.get("LLM_DEBUG_PROMPTS", "").lower() in ("true", "1"):
             total_tokens = self.count_tokens(prompt)
             logger.info(
-                "Prompt assembled: %d tokens | global=%d | local=%d | memory=%d",
+                "Prompt assembled: %d tokens | global=%d | local=%d | soul=%d | memory=%d",
                 total_tokens,
                 self.count_tokens(global_ctx) if global_ctx else 0,
                 self.count_tokens(local_ctx) if local_ctx else 0,
+                self.count_tokens(soul_text) if soul_text else 0,
                 self.count_tokens(
                     format_memory_context(memories, req.player_name) if memories else ""
                 ),
