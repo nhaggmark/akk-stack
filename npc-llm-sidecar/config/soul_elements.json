@@ -34,5 +34,174 @@
       "disposition": "rooted"
     }
   },
-  "npc_overrides": {}
+  "npc_overrides": {
+    "1068": {
+      "courage": 2, "loyalty": 2, "generosity": 1, "piety": 1,
+      "desires": ["order"], "fears": ["corruption in the ranks"], "disposition": "rooted"
+    },
+    "1085": {
+      "courage": 1, "loyalty": 2, "honesty": 1,
+      "desires": ["duty"], "fears": ["gnoll raids"], "disposition": "content"
+    },
+    "1148": {
+      "courage": 2, "loyalty": 2, "generosity": 1, "piety": 1,
+      "desires": ["justice"], "fears": ["failure"], "disposition": "restless"
+    },
+    "2097": {
+      "courage": 2, "honesty": 2, "loyalty": 2,
+      "desires": ["justice"], "fears": ["corruption"], "disposition": "restless"
+    },
+    "2051": {
+      "courage": 1, "honesty": 1, "curiosity": 2, "loyalty": 1,
+      "desires": ["peace"], "fears": ["civil war"], "disposition": "rooted"
+    },
+    "2006": {
+      "courage": 2, "honesty": 1, "loyalty": 1, "curiosity": 1,
+      "desires": ["power"], "fears": ["irrelevance"], "disposition": "restless"
+    },
+    "2032": {
+      "generosity": 2, "piety": 2, "honesty": 2,
+      "desires": ["faith"], "fears": ["failure"], "disposition": "curious"
+    },
+    "2033": {
+      "honesty": -2, "generosity": -1, "curiosity": 2,
+      "desires": ["wealth"], "fears": ["exposure"], "disposition": "content"
+    },
+    "2074": {
+      "honesty": -2, "generosity": -1, "courage": 1, "curiosity": 1,
+      "desires": ["wealth"], "fears": ["exposure"], "disposition": "content"
+    },
+    "9018": {
+      "courage": 3, "honesty": -1, "loyalty": 1, "generosity": -2,
+      "desires": ["power"], "fears": ["chaos"], "disposition": "rooted"
+    },
+    "9109": {
+      "courage": 1, "loyalty": 1,
+      "desires": ["order"], "fears": ["Knights of Truth destabilizing the city"], "disposition": "content"
+    },
+    "9100": {
+      "courage": 2, "honesty": 2, "loyalty": 2,
+      "desires": ["justice"], "fears": ["Lucan's rule becoming permanent"], "disposition": "restless"
+    },
+    "9092": {
+      "courage": 1, "honesty": 1, "loyalty": 1,
+      "desires": ["justice"], "fears": ["dishonor"], "disposition": "restless"
+    },
+    "9069": {
+      "curiosity": 3, "honesty": 1,
+      "desires": ["knowledge"], "fears": ["interruption"], "disposition": "rooted"
+    },
+    "10094": {
+      "generosity": -2, "honesty": -2, "courage": 1, "curiosity": 2,
+      "desires": ["power"], "fears": ["irrelevance"], "disposition": "content"
+    },
+    "29055": {
+      "courage": 2, "honesty": 2, "loyalty": 2,
+      "desires": ["duty"], "fears": ["dishonor"], "disposition": "rooted"
+    },
+    "29056": {
+      "honesty": 3, "loyalty": 2, "piety": 2,
+      "desires": ["justice"], "fears": ["moral failure"], "disposition": "rooted"
+    },
+    "29058": {
+      "generosity": 2, "honesty": 2, "piety": 1,
+      "desires": ["faith"], "fears": ["suffering"], "disposition": "rooted"
+    },
+    "29059": {
+      "honesty": 3, "loyalty": 1, "piety": 1,
+      "desires": ["justice"], "fears": ["corruption"], "disposition": "content"
+    },
+    "29071": {
+      "honesty": 0, "curiosity": 2, "courage": 1,
+      "desires": ["freedom"], "fears": ["dishonor"], "disposition": "curious"
+    },
+    "29012": {
+      "courage": 3, "honesty": 2, "loyalty": 1,
+      "desires": ["glory"], "fears": ["dishonor"], "disposition": "content"
+    },
+    "24069": {
+      "courage": 1, "loyalty": 2, "piety": 1,
+      "desires": ["duty"], "fears": ["Heretic incursion"], "disposition": "rooted"
+    },
+    "24098": {
+      "courage": 2, "honesty": 1, "loyalty": 2,
+      "desires": ["duty"], "fears": ["being dismissed as merely physical"], "disposition": "content"
+    },
+    "24043": {
+      "curiosity": 2, "honesty": 1, "generosity": 1,
+      "desires": ["knowledge"], "fears": ["disruption"], "disposition": "rooted"
+    },
+    "24044": {
+      "honesty": 2, "courage": 1,
+      "desires": ["order"], "fears": ["apostasy spreading from Paineel"], "disposition": "content"
+    },
+    "75075": {
+      "courage": 3, "honesty": 1, "loyalty": 2, "generosity": -2,
+      "desires": ["power"], "fears": ["Erudin destroying Paineel"], "disposition": "rooted"
+    },
+    "75011": {
+      "curiosity": 3, "honesty": 1, "generosity": -1,
+      "desires": ["knowledge"], "fears": ["ignorance"], "disposition": "curious"
+    },
+    "75024": {
+      "courage": 2, "loyalty": 2, "honesty": 1,
+      "desires": ["duty"], "fears": ["the Hole consuming the city"], "disposition": "content"
+    },
+    "60007": {
+      "loyalty": 3, "honesty": 2, "courage": 2,
+      "desires": ["order"], "fears": ["the guilds fracturing"], "disposition": "rooted"
+    },
+    "60008": {
+      "loyalty": 2, "honesty": 1, "courage": 1,
+      "desires": ["duty"], "fears": ["dishonor"], "disposition": "content"
+    },
+    "61001": {
+      "generosity": 1, "piety": 1, "courage": 2,
+      "desires": ["duty"], "fears": ["Crushbone breach"], "disposition": "content"
+    },
+    "62020": {
+      "piety": 2, "curiosity": 2, "generosity": 1,
+      "desires": ["knowledge"], "fears": ["students harming themselves through impatience"], "disposition": "rooted"
+    },
+    "62019": {
+      "honesty": 3, "piety": 1, "courage": 1,
+      "desires": ["knowledge"], "fears": ["imprecision"], "disposition": "rooted"
+    },
+    "42019": {
+      "generosity": -3, "honesty": -2, "piety": 3, "loyalty": 3,
+      "desires": ["power"], "fears": ["Innoruuk's disfavor"], "disposition": "rooted"
+    },
+    "42003": {
+      "loyalty": 2, "piety": 2, "generosity": -2, "courage": 2,
+      "desires": ["recognition"], "fears": ["demotion to Outer Guard"], "disposition": "content"
+    },
+    "40039": {
+      "loyalty": 1, "courage": 1, "generosity": -1,
+      "desires": ["duty"], "fears": ["outsiders"], "disposition": "content"
+    },
+    "19104": {
+      "honesty": 1, "curiosity": 2, "generosity": 2,
+      "desires": ["peace"], "fears": ["goblin incursion from Runnyeye"], "disposition": "rooted"
+    },
+    "82044": {
+      "courage": -1, "loyalty": 3, "piety": 3, "curiosity": 2,
+      "desires": ["knowledge"], "fears": ["outsiders", "the empire's knowledge being lost"], "disposition": "rooted"
+    },
+    "82018": {
+      "courage": -1, "loyalty": 3, "honesty": 1,
+      "desires": ["duty"], "fears": ["outsiders"], "disposition": "content"
+    },
+    "155151": {
+      "courage": 3, "loyalty": 3, "honesty": 1,
+      "desires": ["family"], "fears": ["Grimlings breaking the city"], "disposition": "rooted"
+    },
+    "155145": {
+      "courage": 3, "loyalty": 3, "honesty": 2,
+      "desires": ["glory"], "fears": ["losing soldiers"], "disposition": "content"
+    },
+    "55088": {
+      "loyalty": 2, "curiosity": 3, "honesty": 1,
+      "desires": ["order"], "fears": ["system failure"], "disposition": "rooted"
+    }
+  }
 }
