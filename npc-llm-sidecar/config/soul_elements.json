@@ -202,6 +202,172 @@
     "55088": {
       "loyalty": 2, "curiosity": 3, "honesty": 1,
       "desires": ["order"], "fears": ["system failure"], "disposition": "rooted"
+    },
+
+    "1077": {
+      "courage": 2, "honesty": 2, "loyalty": 3, "piety": 1,
+      "desires": ["recognition"], "fears": ["Bloodsaber corruption in the guard"],
+      "disposition": "rooted"
+    },
+    "466029": {
+      "courage": 2, "honesty": 2, "loyalty": 3, "piety": 1, "curiosity": 1,
+      "desires": ["peace"], "fears": ["Qeynos torn apart by Kane Bayle's ambition"],
+      "disposition": "rooted"
+    },
+    "4057": {
+      "courage": 2, "honesty": 2, "curiosity": 2, "loyalty": 2,
+      "desires": ["safety of the hills"], "fears": ["losing more rangers to gnoll ambushes"],
+      "disposition": "curious"
+    },
+    "2001": {
+      "courage": 3, "honesty": 2, "curiosity": 1, "loyalty": 2,
+      "desires": ["breaching Qeynos"], "fears": ["being forgotten as another failed raider"],
+      "disposition": "restless"
+    },
+    "1042": {
+      "honesty": -1, "curiosity": 2, "courage": 1, "generosity": 1,
+      "desires": ["comfortable prosperity"], "fears": ["being caught at the wrong moment"],
+      "disposition": "curious"
+    },
+    "1090": {
+      "courage": 1, "honesty": 2, "loyalty": 2, "piety": 1,
+      "desires": ["prove Bloodsaber suspicions"], "fears": ["corrupt guards he cannot identify"],
+      "disposition": "content"
+    },
+    "1149": {
+      "courage": 2, "loyalty": 2, "piety": 1, "curiosity": 1,
+      "desires": ["honor his uncle's memory"], "fears": ["not being taken seriously"],
+      "disposition": "restless"
+    },
+    "382202": {
+      "courage": 3, "loyalty": 2, "honesty": -2, "generosity": -2,
+      "desires": ["Freeport's stability"], "fears": ["the city collapsing without his hand"],
+      "disposition": "rooted"
+    },
+    "9100": {
+      "courage": 2, "honesty": 3, "loyalty": 3, "piety": 2,
+      "desires": ["justice in Freeport"], "fears": ["Lucan's agents destroying her evidence"],
+      "disposition": "rooted"
+    },
+    "29009": {
+      "honesty": 3, "piety": 3, "loyalty": 2, "courage": 1,
+      "desires": ["justice through the Tribunal"], "fears": ["dishonesty going unpunished"],
+      "disposition": "rooted"
+    },
+    "29057": {
+      "courage": 2, "loyalty": 3, "honesty": 2, "generosity": -1,
+      "desires": ["protect Halas from every threat"], "fears": ["weakness in the next generation"],
+      "disposition": "content"
+    },
+    "42019": {
+      "piety": 3, "loyalty": 3, "generosity": -3, "honesty": -2,
+      "desires": ["Innoruuk's absolute devotion"], "fears": ["Teir'Dal purity corrupted by sentiment"],
+      "disposition": "rooted"
+    },
+    "60022": {
+      "loyalty": 3, "courage": 2, "honesty": 2, "generosity": -1,
+      "desires": ["honor the family guard tradition"], "fears": ["failing his father's example"],
+      "disposition": "rooted"
+    },
+    "60026": {
+      "courage": 3, "curiosity": 2, "loyalty": 2, "piety": 1,
+      "desires": ["clear the Estate of Unrest"], "fears": ["the undead being more than he can manage"],
+      "disposition": "restless"
+    },
+    "61026": {
+      "loyalty": 3, "courage": 2, "piety": 2, "honesty": 2,
+      "desires": ["Felwithe's martial excellence"], "fears": ["the orc raids growing more organized"],
+      "disposition": "rooted"
+    },
+    "54088": {
+      "courage": 2, "curiosity": 2, "piety": 2, "loyalty": 2,
+      "desires": ["pass on the Faydark's knowledge"], "fears": ["losing students to impatience"],
+      "disposition": "content"
+    },
+    "54110": {
+      "courage": 2, "loyalty": 2, "curiosity": 2, "honesty": 1,
+      "desires": ["understand Crushbone's new tactics"], "fears": ["being caught off-guard"],
+      "disposition": "content"
+    },
+    "155151": {
+      "courage": 3, "loyalty": 3, "honesty": 2, "generosity": 1,
+      "desires": ["Vah Shir survival and victory"], "fears": ["the Grimling War outlasting his people"],
+      "disposition": "rooted"
+    },
+    "155167": {
+      "courage": 3, "loyalty": 3, "honesty": 2, "generosity": -1,
+      "desires": ["tactical perfection in the Grimling War"], "fears": ["a Grimling tactic he hasn't seen"],
+      "disposition": "rooted"
+    },
+    "155148": {
+      "courage": 2, "loyalty": 3, "honesty": 2, "piety": 1,
+      "desires": ["honor her fallen soldiers by winning"], "fears": ["preventable losses"],
+      "disposition": "content"
+    },
+    "82044": {
+      "piety": 3, "loyalty": 3, "curiosity": 2, "generosity": -3,
+      "desires": ["preserve Iksar necromantic knowledge"], "fears": ["the empire's scholarship dying with its scholars"],
+      "disposition": "rooted"
+    },
+    "106100": {
+      "loyalty": 3, "courage": 2, "honesty": 2, "generosity": -2,
+      "desires": ["Legion officers worthy of the Sebilisian legacy"], "fears": ["undisciplined trainees"],
+      "disposition": "rooted"
+    },
+    "106125": {
+      "piety": 3, "loyalty": 3, "curiosity": 2, "generosity": -2,
+      "desires": ["maintain the ancestral spiritual connection"], "fears": ["Iksar wisdom lost to war's pressures"],
+      "disposition": "rooted"
+    },
+    "19058": {
+      "courage": 2, "honesty": 2, "generosity": 1, "curiosity": 1, "loyalty": 2,
+      "desires": ["Rivervale's safety and cheerfulness"], "fears": ["Runnyeye goblins outpacing his deputies"],
+      "disposition": "content"
+    },
+    "1130": {
+      "curiosity": 3, "honesty": 2, "generosity": 1, "courage": 1,
+      "desires": ["stories never before told"], "fears": ["the world becoming smaller than his songs"],
+      "disposition": "eager"
+    },
+    "1000": {
+      "curiosity": 2, "honesty": 1, "generosity": 1, "courage": 1,
+      "desires": ["the right story at the right moment"], "fears": ["saying the wrong thing to the wrong audience"],
+      "disposition": "curious"
+    },
+    "9058": {
+      "courage": 3, "loyalty": 2, "honesty": 2, "piety": 1, "curiosity": 1,
+      "desires": ["prove martial service is valid Tunare worship"], "fears": ["Crushbone breaking through while she defends elsewhere"],
+      "disposition": "content"
+    },
+    "383073": {
+      "courage": 3, "loyalty": 2, "honesty": 2, "piety": 1, "curiosity": 1,
+      "desires": ["prove martial service is valid Tunare worship"], "fears": ["Crushbone breaking through while she defends elsewhere"],
+      "disposition": "content"
+    },
+    "1101": {
+      "courage": 2, "loyalty": 3, "honesty": 2, "generosity": -1,
+      "desires": ["command competence"], "fears": ["his authority undermined by politics"],
+      "disposition": "content"
+    },
+    "106069": {
+      "courage": 2, "loyalty": 3, "honesty": 2, "piety": 1,
+      "desires": ["protect Shar Vahl from every threat"], "fears": ["a Grimling attack he wasn't prepared for"],
+      "disposition": "content"
+    },
+    "75075": {
+      "courage": 2, "honesty": 1, "piety": 2, "loyalty": 3, "curiosity": 2,
+      "desires": ["demonstrate Erudite mastery without Quellious's restrictions"], "fears": ["Erudin destroying Paineel before they prove their power"],
+      "disposition": "rooted"
+    },
+    "155121": {
+      "courage": 2, "loyalty": 3, "honesty": 2, "piety": 1,
+      "desires": ["perfect operational readiness"], "fears": ["a patrol gap that a Grimling exploits"],
+      "disposition": "content"
+    },
+    "106109": {
+      "loyalty": 3, "honesty": 1, "courage": 1, "curiosity": 1,
+      "desires": ["efficient civil order in Cabilis"], "fears": ["guild factional conflict undermining stability"],
+      "disposition": "rooted"
     }
   }
 }
