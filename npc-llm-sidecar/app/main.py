@@ -194,12 +194,14 @@ async def chat(req: ChatRequest, background_tasks: BackgroundTasks):
     if _memory and _memory.enabled and req.player_id > 0:
         top_k = int(os.environ.get("MEMORY_TOP_K", "5"))
         score_threshold = float(os.environ.get("MEMORY_SCORE_THRESHOLD", "0.4"))
+        recency_window = int(os.environ.get("MEMORY_RECENCY_WINDOW", "3"))
         memories = await _memory.retrieve(
             npc_type_id=req.npc_type_id,
             player_id=req.player_id,
             query_text=req.message,
             top_k=top_k,
             score_threshold=score_threshold,
+            recency_window=recency_window,
         )
 
     # Use the layered assembler; fall back to legacy prompt builder if assembler failed to init

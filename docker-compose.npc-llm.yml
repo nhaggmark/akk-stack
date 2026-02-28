@@ -43,6 +43,7 @@ services:
       - MEMORY_MAX_PER_PLAYER=${MEMORY_MAX_PER_PLAYER:-100}
       - MEMORY_TTL_DAYS=${MEMORY_TTL_DAYS:-90}
       - MEMORY_CLEANUP_INTERVAL_HOURS=${MEMORY_CLEANUP_INTERVAL_HOURS:-24}
+      - MEMORY_RECENCY_WINDOW=${MEMORY_RECENCY_WINDOW:-3}
       - LLM_DEBUG_PROMPTS=${LLM_DEBUG_PROMPTS:-false}
       # Phase 2.5: Token budget controls — per-section limits within LLM_MAX_TOKENS total
       # These cap how many tokens each context section may contribute to the prompt.

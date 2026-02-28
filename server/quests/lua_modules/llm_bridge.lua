@@ -1,6 +1,6 @@
 -- llm_bridge.lua
 -- Bridge between EQEmu Lua quest scripts and the NPC LLM sidecar service.
--- Called from global_npc.lua event_say for NPCs without local quest scripts.
+-- Called from global_npc.lua event_say for NPCs whose local script lacks event_say.
 
 local json = require("json")
 local config = require("llm_config")
@@ -8,26 +8,58 @@ local faction_map = require("llm_faction")
 
 local llm_bridge = {}
 
--- Check if this NPC has a local quest script (Lua or Perl).
--- EQEmu fires both local and global event_say; we must skip LLM for scripted NPCs.
-local function has_local_script(e)
+-- Cache for Perl script EVENT_SAY scan results. Keyed by npc_type_id.
+-- Persists until #reloadquest clears the Lua module cache.
+local _perl_say_cache = {}
+
+-- Check if this NPC's loaded script has event_say defined.
+-- Uses the Lua registry (same mechanism as C++ HasFunction) to detect Lua event_say.
+-- Falls back to cached file scan for Perl scripts (which live in a separate interpreter).
+-- Returns true only when a local say handler exists; false means LLM is allowed.
+local function has_local_say_handler(e)
+    local npc_id = e.self:GetNPCTypeID()
+
+    -- 1. Probe Lua registry: EventNPCLocal ran first, so the script is already loaded.
+    local reg = debug.getregistry()
+    local pkg = reg["npc_" .. npc_id]
+    if pkg then
+        -- Script is loaded. Allow LLM only if there is no event_say function.
+        return type(pkg.event_say) == "function"
+    end
+
+    -- 2. No Lua script loaded. Check for Perl script with EVENT_SAY (cached).
+    if _perl_say_cache[npc_id] ~= nil then
+        return _perl_say_cache[npc_id]
+    end
+
     local zone = eq.get_zone_short_name()
     local name = e.self:GetCleanName():gsub(" ", "_")
-    local base = "/home/eqemu/server/quests/" .. zone .. "/" .. name
-    for _, ext in ipairs({".lua", ".pl"}) do
-        local f = io.open(base .. ext, "r")
-        if f then f:close() return true end
+    local base  = "/home/eqemu/server/quests/" .. zone .. "/"
+
+    -- Check name-based Perl script first, then ID-based (e.g., 48030.pl).
+    for _, pl_path in ipairs({ base .. name .. ".pl", base .. npc_id .. ".pl" }) do
+        local f = io.open(pl_path, "r")
+        if f then
+            local content = f:read("*a")
+            f:close()
+            local has_say = content:find("EVENT_SAY") ~= nil
+            _perl_say_cache[npc_id] = has_say
+            return has_say
+        end
     end
+
+    -- 3. No local script at all — LLM is allowed.
+    _perl_say_cache[npc_id] = false
     return false
 end
 
 -- Check if an NPC is eligible for LLM-generated dialogue.
--- Filters: local script, global enabled flag, NPC intelligence, body type exclusions, per-NPC opt-out.
+-- Filters: local say handler, global enabled flag, NPC intelligence, body type exclusions, per-NPC opt-out.
 function llm_bridge.is_eligible(e)
     if not config.enabled then return false end
 
-    -- Skip NPCs that have their own quest scripts
-    if has_local_script(e) then return false end
+    -- Skip NPCs whose local script already handles event_say
+    if has_local_say_handler(e) then return false end
 
     -- Sentience filter: low-INT creatures do not speak
     if e.self:GetINT() < config.min_npc_intelligence then return false end

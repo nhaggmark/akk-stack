@@ -71,12 +71,19 @@ class MemoryManager:
         return sum(x * y for x, y in zip(a, b))
 
     async def retrieve(self, npc_type_id: int, player_id: int, query_text: str,
-                       top_k: int = 5, score_threshold: float = 0.4) -> list[dict]:
+                       top_k: int = 5, score_threshold: float = 0.4,
+                       recency_window: int = 3) -> list[dict]:
         """Query ChromaDB for relevant past conversations.
 
         Returns list of memory dicts sorted by recency-weighted score.
         Applies diversity filtering to prevent feedback loops where a bad
         follow-up answer drowns out the original correct statement.
+
+        If no memories pass the similarity threshold, falls back to the
+        most recent `recency_window` exchanges (conversational continuity).
+        This handles short follow-ups like "thank you" or "tell me more"
+        that are semantically distant from stored summaries.
+
         Returns empty list on any error (graceful degradation).
 
         Note: ChromaDB returns cosine distances (lower = more similar).
@@ -171,10 +178,64 @@ class MemoryManager:
                 len(ids), len(candidates), len(diverse),
             )
 
-            return diverse[:top_k]
+            if diverse:
+                return diverse[:top_k]
+
+            # Recency fallback: no memories passed the similarity threshold.
+            # Fetch the N most recent exchanges so the NPC remembers what
+            # was just said (handles "thank you", "tell me more", etc.).
+            if recency_window > 0:
+                return await self._retrieve_recent(
+                    collection, player_id, recency_window,
+                )
+
+            return []
 
         except Exception:
             logger.exception("Memory retrieval failed — proceeding without memory")
+            return []
+
+    async def _retrieve_recent(self, collection, player_id: int,
+                               count: int) -> list[dict]:
+        """Fetch the N most recent memories by timestamp for conversational continuity."""
+        try:
+            results = collection.get(
+                where={"player_id": player_id},
+                include=["metadatas"],
+            )
+
+            ids = results.get("ids", [])
+            metadatas = results.get("metadatas", [])
+
+            if not ids:
+                return []
+
+            now = time.time()
+            entries = []
+            for i, vector_id in enumerate(ids):
+                meta = metadatas[i] if i < len(metadatas) else {}
+                ts = meta.get("timestamp", 0)
+                days_since = max((now - ts) / 86400, 0)
+                entries.append({
+                    "player_message": meta.get("player_message", ""),
+                    "npc_response": meta.get("npc_response", ""),
+                    "turn_summary": meta.get("turn_summary", ""),
+                    "zone": meta.get("zone", ""),
+                    "timestamp": ts,
+                    "faction_at_time": meta.get("faction_at_time", 0),
+                    "score": 0.0,  # Not similarity-based
+                    "days_ago": days_since,
+                })
+
+            # Most recent first
+            entries.sort(key=lambda m: m["timestamp"], reverse=True)
+            recent = entries[:count]
+
+            logger.info("Memory recency fallback: returning %d most recent exchanges", len(recent))
+            return recent
+
+        except Exception:
+            logger.exception("Recency fallback failed")
             return []
 
     async def store(self, npc_type_id: int, player_id: int, player_name: str,
