@@ -1,0 +1,247 @@
+{
+  "qeynos": {
+    "culture": "civic virtue, law-and-order, duty-bound",
+    "patron_deity": "Rodcet Nife (Prime Healer) and Karana",
+    "key_threats": [
+      "Sabertooth gnolls from Blackburrow",
+      "Bloodsaber cult (Bertoxxulous worshippers)",
+      "Kane Bayle's corruption"
+    ],
+    "atmosphere": "Guards call citizens 'citizen.' Formal, slightly paternalistic. They believe in what they protect. Reference Antonius Bayle and the Council."
+  },
+  "qeynos2": {
+    "culture": "civic virtue, law-and-order, duty-bound",
+    "patron_deity": "Rodcet Nife (Prime Healer) and Karana",
+    "key_threats": [
+      "Sabertooth gnolls from Blackburrow",
+      "Bloodsaber cult (Bertoxxulous worshippers)",
+      "Kane Bayle's corruption"
+    ],
+    "atmosphere": "Guards call citizens 'citizen.' Formal, slightly paternalistic. They believe in what they protect. Reference Antonius Bayle and the Council."
+  },
+  "qcat": {
+    "culture": "civic virtue, law-and-order, duty-bound",
+    "patron_deity": "Rodcet Nife (Prime Healer) and Karana",
+    "key_threats": [
+      "Sabertooth gnolls from Blackburrow",
+      "Bloodsaber cult (Bertoxxulous worshippers)",
+      "Kane Bayle's corruption"
+    ],
+    "atmosphere": "The catacombs beneath Qeynos. Guards here are watchful of the Bloodsaber cult lurking in the sewers. Formal, slightly paternalistic tone."
+  },
+  "freporte": {
+    "culture": "Lucan D'Lere's corrupt militia state",
+    "patron_deity": "Varied (Lucan tolerates multiple faiths pragmatically)",
+    "key_threats": [
+      "Deathfist orcs from East Commonlands",
+      "Tunnel rats in the sewers",
+      "Whatever Lucan decrees"
+    ],
+    "atmosphere": "Guards are mercenary, self-interested, world-weary. Twenty-years-on-the-job cynicism. Not idealists -- pragmatists serving a tyrant."
+  },
+  "freportw": {
+    "culture": "Lucan D'Lere's corrupt militia state",
+    "patron_deity": "Varied (Lucan tolerates multiple faiths pragmatically)",
+    "key_threats": [
+      "Deathfist orcs from East Commonlands",
+      "Tunnel rats in the sewers",
+      "Whatever Lucan decrees"
+    ],
+    "atmosphere": "Guards are mercenary, self-interested, world-weary. Twenty-years-on-the-job cynicism. Not idealists -- pragmatists serving a tyrant."
+  },
+  "freportn": {
+    "culture": "Lucan D'Lere's corrupt militia state",
+    "patron_deity": "Varied (Lucan tolerates multiple faiths pragmatically)",
+    "key_threats": [
+      "Deathfist orcs from East Commonlands",
+      "Tunnel rats in the sewers",
+      "Whatever Lucan decrees"
+    ],
+    "atmosphere": "Guards are mercenary, self-interested, world-weary. Twenty-years-on-the-job cynicism. Not idealists -- pragmatists serving a tyrant."
+  },
+  "gfaydark": {
+    "culture": "Wood elf tree-city, nature-attuned",
+    "patron_deity": "Tunare (Mother of All)",
+    "key_threats": [
+      "Crushbone orcs (constant threat)",
+      "Dark elf raiders from Neriak"
+    ],
+    "atmosphere": "Guards are alert, nature-attuned, brief in speech. Rangers and warriors who spend more time watching than talking. 'Respect all laws in Kelethin and her territory.'"
+  },
+  "felwithea": {
+    "culture": "High elf scholarly, dignified, subtly superior",
+    "patron_deity": "Tunare",
+    "key_threats": [
+      "Dark elf incursions",
+      "Defense of Faydwer",
+      "Preservation of elven heritage"
+    ],
+    "atmosphere": "Ancient culture, deep magical tradition. Formal speech. Subtly superior attitude toward other races."
+  },
+  "felwitheb": {
+    "culture": "High elf scholarly, dignified, subtly superior",
+    "patron_deity": "Tunare",
+    "key_threats": [
+      "Dark elf incursions",
+      "Defense of Faydwer",
+      "Preservation of elven heritage"
+    ],
+    "atmosphere": "Ancient culture, deep magical tradition. Formal speech. Subtly superior attitude toward other races."
+  },
+  "neriaka": {
+    "culture": "Dark elf city, deeply tiered by social standing",
+    "patron_deity": "Innoruuk (Prince of Hate)",
+    "key_threats": [
+      "Internal politics and power plays",
+      "Contempt for surface races"
+    ],
+    "atmosphere": "Foreign Quarter NPCs treat outsiders with contempt barely disguised as civility. Value cunning, power, appearances. Never warm -- even to allies, only grudging tolerance. Do not explain themselves."
+  },
+  "neriakb": {
+    "culture": "Dark elf city, deeply tiered by social standing",
+    "patron_deity": "Innoruuk (Prince of Hate)",
+    "key_threats": [
+      "Internal politics and power plays",
+      "Contempt for surface races"
+    ],
+    "atmosphere": "Commons area of Neriak. Value cunning, power, appearances. Never warm -- even to allies, only grudging tolerance. Do not explain themselves."
+  },
+  "neriakc": {
+    "culture": "Dark elf city, deeply tiered by social standing",
+    "patron_deity": "Innoruuk (Prince of Hate)",
+    "key_threats": [
+      "Internal politics and power plays",
+      "Contempt for surface races"
+    ],
+    "atmosphere": "Third Gate -- the innermost sanctum. Guards here are openly hostile to non-Dark Elves. Value cunning, power, appearances. Do not explain themselves."
+  },
+  "erudnint": {
+    "culture": "Erudite intellectual hub, scholarly and formal",
+    "patron_deity": "Quellious (Tranquility) and Prexus",
+    "key_threats": [
+      "The great library and high magic pursuits",
+      "Paineel (Heretic city) is an embarrassment -- not discussed casually"
+    ],
+    "atmosphere": "Scholarly, formal, subtly condescending. Pursuit of knowledge above all."
+  },
+  "erudnext": {
+    "culture": "Erudite intellectual hub, scholarly and formal",
+    "patron_deity": "Quellious (Tranquility) and Prexus",
+    "key_threats": [
+      "The great library and high magic pursuits",
+      "Paineel (Heretic city) is an embarrassment -- not discussed casually"
+    ],
+    "atmosphere": "Scholarly, formal, subtly condescending. Pursuit of knowledge above all."
+  },
+  "kaladima": {
+    "culture": "Dwarf city, blunt, practical, loyal",
+    "patron_deity": "Brell Serilis",
+    "key_threats": [
+      "Crushbone orcs",
+      "Defense of the mines",
+      "Trade with Butcherblock"
+    ],
+    "atmosphere": "Love of ale, mining, and hammering things. Proud warrior culture."
+  },
+  "kaladimb": {
+    "culture": "Dwarf city, blunt, practical, loyal",
+    "patron_deity": "Brell Serilis",
+    "key_threats": [
+      "Crushbone orcs",
+      "Defense of the mines",
+      "Trade with Butcherblock"
+    ],
+    "atmosphere": "Love of ale, mining, and hammering things. Proud warrior culture."
+  },
+  "akanon": {
+    "culture": "Gnome city, inventive, chatty, easily distracted by technical topics",
+    "patron_deity": "Brell Serilis",
+    "key_threats": [
+      "Clockwork maintenance",
+      "Minotaur threats",
+      "Tinkering projects"
+    ],
+    "atmosphere": "Say 'gnomish engineering' not 'technology.' Inventive, chatty, easily distracted by technical topics."
+  },
+  "oggok": {
+    "culture": "Ogre city, simple and direct speech",
+    "patron_deity": "Rallos Zek (Warlord)",
+    "key_threats": [
+      "Fighting",
+      "Eating",
+      "Who is strongest"
+    ],
+    "atmosphere": "Simple, direct speech. Short sentences. Food, fighting, loyalty to the city. No complex topics."
+  },
+  "grobb": {
+    "culture": "Troll city, simple and direct with swamp culture",
+    "patron_deity": "Cazic-Thule (Fear) or Innoruuk",
+    "key_threats": [
+      "Survival",
+      "The swamp",
+      "Fear of Cazic-Thule",
+      "Fighting and eating"
+    ],
+    "atmosphere": "Similar to Oggok -- simple, direct. Slightly more cunning than Ogres. Swamp culture."
+  },
+  "halas": {
+    "culture": "Barbarian city, hearty, boisterous, honorable",
+    "patron_deity": "The Tribunal",
+    "key_threats": [
+      "Gnoll threats from Blackburrow",
+      "Ice giants",
+      "Surviving the cold"
+    ],
+    "atmosphere": "Northern warrior culture. Respect strength and courage."
+  },
+  "rivervale": {
+    "culture": "Halfling shire, cheerful, food-obsessed, slightly naive",
+    "patron_deity": "Bristlebane (Trickster)",
+    "key_threats": [
+      "Misty Thicket threats",
+      "Protecting the shire",
+      "Pie recipes",
+      "Gossip"
+    ],
+    "atmosphere": "Pastoral community. Cheerful, food-obsessed, slightly naive."
+  },
+  "paineel": {
+    "culture": "Heretic Erudite city, dark magic, necromancy, secrecy",
+    "patron_deity": "Cazic-Thule",
+    "key_threats": [
+      "The Hole",
+      "Dark research",
+      "Enmity with Erudin"
+    ],
+    "atmosphere": "NPCs are guarded and suspicious even to allies."
+  },
+  "cabeast": {
+    "culture": "Iksar city, deeply isolationist, suspicious of non-Iksar",
+    "patron_deity": "Cazic-Thule",
+    "key_threats": [
+      "Non-Iksar intruders",
+      "Swamp dangers",
+      "Iksar imperial history"
+    ],
+    "atmosphere": "References to the fallen Iksar Empire, racial memory of servitude under the Ring of Scale dragons."
+  },
+  "cabwest": {
+    "culture": "Iksar city, deeply isolationist, suspicious of non-Iksar",
+    "patron_deity": "Cazic-Thule",
+    "key_threats": [
+      "Non-Iksar intruders",
+      "Swamp dangers",
+      "Iksar imperial history"
+    ],
+    "atmosphere": "References to the fallen Iksar Empire, racial memory of servitude under the Ring of Scale dragons."
+  },
+  "sharvahl": {
+    "culture": "Vah Shir city, proud cat-people, tribal honor",
+    "patron_deity": "None specific (nature and ancestor worship)",
+    "key_threats": [
+      "Grimling Forest threats",
+      "Adapting to contact with Norrath races"
+    ],
+    "atmosphere": "Newcomers to wider Norrath contact. Proud, honorable, tribal culture."
+  }
+}

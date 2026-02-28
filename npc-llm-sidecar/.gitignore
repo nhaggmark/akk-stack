@@ -1,0 +1,9 @@
+# Model files are large binaries — download separately, do not commit
+models/*.gguf
+models/*.bin
+models/*.safetensors
+!models/.gitkeep
+
+__pycache__/
+*.pyc
+.env

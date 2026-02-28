@@ -1,0 +1,239 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "description": "Per-zone knowledge at three INT-gated detail tiers",
+    "int_tiers": {
+      "low": "INT < 75 — vague warnings, simple directions, no names or numbers",
+      "medium": "INT 75-120 — faction names, basic travel advice, general awareness",
+      "high": "INT > 120 — named mobs, level ranges, historical context, tactical intel"
+    }
+  },
+
+  "qeynos": {
+    "low": "City good. Dogs to north. Bad dark underground. Ships go west.",
+    "medium": "Qeynos is Antonius Bayle's city. The Sabertooth gnolls press from Blackburrow to the north through Qeynos Hills. The Qeynos Aqueducts beneath the streets harbor criminals and worse. Ships from the southern docks connect to Erudin. Kithicor Forest to the east is deadly after dark — do not travel there at night.",
+    "high": "Qeynos is governed by Antonius Bayle with the Guards of Qeynos and Priests of Life as the major city factions. The Sabertooth gnolls of Blackburrow launch raids south through Qeynos Hills constantly — Fippy Darkpaw, a named gnoll, has attacked the north gate more times than anyone counts. The Bloodsaber cult, devotees of Bertoxxulous, operates from the Qeynos Aqueducts below the city, hidden from most citizens. Kithicor Forest fills with undead levels 25-99 at nightfall due to an ancient battle between the dead wizard Bloody Kithicor and his former allies. The Circle of Unseen Hands thieves' guild competes with the Corrupt Qeynos Guards for influence over the city's criminal underbelly. Ships from the south docks connect to Erudin for trade. Surefall Glade lies through Qeynos Hills — a ranger sanctuary where followers of Karana train."
+  },
+
+  "qeynos2": {
+    "low": "North part of city. Gate goes to hills. Dogs come from north.",
+    "medium": "North Qeynos connects to Qeynos Hills and beyond that, Blackburrow. The gnoll threat is a constant concern for the northern gates. The city guard patrols here, but travelers heading north should be armed.",
+    "high": "North Qeynos is where the Qeynos Guards concentrate their attention toward the northern threat. The gate leads to Qeynos Hills, which connects to Blackburrow and eventually Everfrost Peaks. The Sabertooth gnolls of Blackburrow have tested this gate for as long as anyone remembers. The Corrupt Qeynos Guards have their underground network here as well as in the south. Traveling the hills toward Blackburrow with a small group is manageable for experienced adventurers; the gnoll dungeon itself requires numbers."
+  },
+
+  "freporte": {
+    "low": "Dangerous city. Militia runs things. Orcs to east.",
+    "medium": "East Freeport is the heart of Sir Lucan D'Lere's corrupt militia rule. Three factions compete here — the Freeport Militia controls the streets, the Knights of Truth resist from the Hall of Truth, and the Steel Warriors maintain their guild hall with open contempt for the Militia. The Deathfist orcs camp in the East Commonlands nearby.",
+    "high": "Freeport is defined by its three-way civil war. The Freeport Militia, led by Sir Lucan D'Lere — a former paladin turned tyrant — controls the streets through intimidation and extortion. The Knights of Truth, paladins of Mithaniel Marr, operate from the Hall of Truth and actively recruit against the Militia; they have a spy (Guard Alayle) embedded in the Militia House. The Steel Warriors support the Knights. Clan Deathfist orcs (levels 1-20, 24+ NPCs) infest the East Commonlands — both the Militia and Warriors offer work against them. Dervish Cutthroat bandits (levels 10-15) prey on trade routes. The Militia patrols even extend into the Commonlands as corrupt agents. Shadowed Men (levels 25-26) appear in the Commonlands — their allegiance is unclear and they are not to be approached carelessly."
+  },
+
+  "freportw": {
+    "low": "Docks here. Ships go places. Watch for militia.",
+    "medium": "West Freeport holds the docks and the bulk of merchant activity. The Coalition of Tradefolk Underground represents the merchant guild trying to survive between the Militia's extortion and the political war. Ships from the docks connect to Faydwer and beyond. The Dervish Cutthroats operate in the West Commonlands just outside.",
+    "high": "West Freeport is the commercial district under Militia pressure. The Coalition of Tradefolk Underground operates here — merchants who have organized to resist Militia extortion while pretending compliance. The Arcane Sciences academy also maintains a presence. The docks provide sea routes to Faydwer and Odus. The Ashen Order (monks of Quellious) hold a hall here and require mandatory services. The West Commonlands immediately outside the city gates hosts Dervish Cutthroat bandits (levels 10-15), werewolves (levels 20-32), and Deathfist orc scouts. The Nexus Luclin spire also sits in the West Commonlands — a connection to the moon for those with knowledge of it."
+  },
+
+  "freportn": {
+    "low": "Middle city part. Guilds and temples here.",
+    "medium": "North Freeport holds the Hall of Truth where the Knights of Truth operate openly against the Militia. The Priests of Marr maintain their temple here as well — followers of Mithaniel and Erollisi Marr. This district is the closest thing Freeport has to a morally clean neighborhood, though the Militia watches it closely.",
+    "high": "North Freeport is the political battleground zone. The Hall of Truth houses the Knights of Truth — they recruit openly, which Lucan tolerates only because the paladins have cross-city connections to Qeynos's legitimate government that make open suppression complicated. The Temple of Marr (Priests of Marr, faction 362) operates adjacent to the Knights. The Militia presence here is higher than in other districts precisely because of the Knights. The Academy of Arcane Sciences has established scholarly work in this district as well. Militia spies watch all three faction headquarters."
+  },
+
+  "neriaka": {
+    "low": "Dark elf city. Bad place for outsiders. Go careful.",
+    "medium": "Neriak Foreign Quarter tolerates outsiders more than the inner city does. Trolls and Ogres serve as muscle here under Dark Elf authority. The Dark Bargainers merchant guild operates. Entering further into Neriak requires better standing with its factions. The Nektulos Forest connects to this zone's entrance.",
+    "high": "The Foreign Quarter is Neriak's lowest-status district, mixed-race by design — Trolls (faction penalty -875 to Dreadguard Inner) and Ogres (penalty -450) serve as laborers under Teir'Dal authority. The Dark Bargainers (faction 236) control merchant activity. The transition from Foreign Quarter to Neriak Commons requires improved faction standing. Innoruuk's influence is pervasive even here — every service is calculated, every conversation a power assessment. Priests of Rodcet Nife in the adjacent Nektulos Forest are theological enemies that Neriak clerics are expected to hunt. Non-Dark Elves are tolerated in the Foreign Quarter, watched in the Commons, and unwelcome in the Third Gate."
+  },
+
+  "neriakb": {
+    "low": "More dark elf city. Colder here. Dark elves proper.",
+    "medium": "Neriak Commons is the residential and commercial heart of the Teir'Dal city. Class trainers and shops serve exclusively Dark Elf factions. The Dismal Rage cleric guild and The Dead necromancer guild operate here openly. Non-Dark Elves with sufficient faction may pass through but are watched.",
+    "high": "Neriak Commons houses the major guild infrastructure of Teir'Dal civilization. The Dismal Rage (clerics of Innoruuk) operate their temple here — advancement requires collecting Helms of the Lifebringer from slain Rodcet Nife priests. The Dead (necromancer guild) practice openly. The Indigo Brotherhood (wizards) and Lodge of the Dead (rogues) also have halls here. Merchants of the Dark Bargainers conduct business with cold calculation. The cultural rule is absolute: even at maximum faction, Neriak NPCs treat outsiders as useful tools, not friends. The cold contempt is theological, not personal — Innoruuk teaches that love is weakness."
+  },
+
+  "neriakc": {
+    "low": "Inner dark elf. Very dangerous outsiders here. Go away.",
+    "medium": "Neriak Third Gate is the inner sanctum where the most powerful Teir'Dal live and work. The Dreadguard Inner (elite guards, faction 370) patrol here. Innoruuk's temple and the highest-ranking guild offices are in this district. Access is strictly controlled.",
+    "high": "The Third Gate is Neriak's seat of power. The Dreadguard Inner (faction 370) are Neriak's elite guard — faction penalties for non-Dark Elves are severe here. The Scribe of Innoruuk, Lokar To-Biath, operates from here: his manner sets the tone. High Priestess Alexandria commands the Dismal Rage clerical order. The necromancer high council has authority in this district. King Naythox Thex's Fourth Gate palace lies beyond even this. Non-Dark Elves who reach this level of faction are exceptional — even then, the cultural coldness never breaks. This is the theological core of Innoruuk worship and the center of Teir'Dal political power."
+  },
+
+  "halas": {
+    "low": "Cold barbarian city. North. Strong people. Cold outside.",
+    "medium": "Halas is the Barbarian city in Everfrost Peaks. The Tribunal, the Six Hammers, governs Barbarian spiritual life. Warriors of the North run the fighter guild. The Rogues of the White Rose are an organized thieves' guild despite appearances. Blackburrow lies south between Halas and Qeynos — gnolls control the dungeon.",
+    "high": "Halas sits in Everfrost Peaks, accessible through Blackburrow from the south. The Barbarian culture worships the Tribunal — justice through force, administered without sentiment. The Warriors of the North (faction 115) run the fighter guild; the Shamans of the Tribunal (faction 116) hold spiritual authority. The Rogues of the White Rose (faction 305) operate surprisingly organized caravans to the frigid north — mammoth hide trade is serious business. The Everfrost wilderness contains polar bears, wolves, and mammoths at levels 2-50. Blackburrow (46 NPCs, levels 1-30) is gnoll territory between here and Qeynos — the Sabertooth gnolls make travel between the cities genuinely dangerous at lower levels. Permafrost Caverns lie deeper in the Everfrost wilderness, housing ice goblins and Permafrost creatures at higher levels."
+  },
+
+  "rivervale": {
+    "low": "Small friendly city. Halflings. Goblins in woods near.",
+    "medium": "Rivervale is the Halfling city, lighthearted but not undefended. Bristlebane the King of Thieves is the patron deity. The Misty Thicket connects directly to the city — goblins and other dangers lurk there. Runnyeye Citadel nearby is goblin-infested.",
+    "high": "Rivervale is the most comfortable city in Norrath by reputation, but the Halfling guards take the Misty Thicket seriously. Runnyeye Citadel (145 NPCs, levels 1-60) is a goblin dungeon sitting within reach — the Liberated Citadel of Runnyeye is its formal name, ironic since the goblins liberated it from its previous owners. The Misty Thicket (134 NPCs, levels 1-65) immediately adjacent has genuine dangers: goblins, undead, and predators at various levels. Halfling culture is oral, communal, and Bristlebane-devoted — the King of Thieves is worshipped through mischief, stories, and clever dealing. The Circle of Unseen Hands in Qeynos has Halfling-friendly faction modifiers, reflecting cultural alignment. The Karana Plains lie beyond the hills to the northeast for those heading toward the mainland cities."
+  },
+
+  "grobb": {
+    "low": "Troll city. Swamp. Frog things nearby.",
+    "medium": "Grobb is the Troll city in Innothule Swamp. Cazic-Thule's worship runs through everything here. The Frogloks of Guk are the hereditary enemies of the Trolls — their dungeon lies in the swamp nearby. The swamp is full of fungus men, kobolds, and alligators.",
+    "high": "Grobb holds the Troll people in Innothule Swamp. Cazic-Thule is their god — worshipped through primal fear rather than intellectual devotion. The Frogloks of Guk (251 NPCs server-wide) are the natural enemies; the Guk dungeons (Old Guk: 170 NPCs levels 2-60, City of Guk: 143 NPCs levels 3-99) lie in the swamp and represent Froglok territory that Trolls would like to reclaim. Innothule Swamp (78 NPCs, levels 1-70) itself has fungus men (levels 1-10), kobolds (levels 2-18), and various swamp predators. Trolls serve the Dark Elves in Neriak's Foreign Quarter — a practical arrangement that the Trolls resent but accept. Troll regeneration is genuine biological fact: they heal faster than any other race."
+  },
+
+  "oggok": {
+    "low": "Ogre city. Big fighters. Lizards outside.",
+    "medium": "Oggok is the Ogre city in the Feerrott. Rallos Zek is their god — strength and war are the only values. The Lizardmen of the Feerrott are the primary outside threat. Ogres speak simply and measure everything by physical power.",
+    "high": "Oggok sits in the Feerrott. The Ogre Guards (faction 337) maintain order through the only currency Oggok respects — physical dominance. Rallos Zek's worship is simple: strength lives, weakness dies. The Ogres' ancestors invaded the planes of the gods, were defeated, and were cursed with reduced intellect as punishment — this is factual history, not metaphor. The Feerrott (174 NPCs, levels 1-65) surrounding the city is dominated by Lizardmen: Allize Taeew (38 NPCs, levels 18-49) and Allize Volew (6 NPCs, levels 4-26) — both factions of Cazic-Thule's servants. The Accursed Temple of CazicThule (190 NPCs, levels 1-65) sits deeper in the Feerrott. Ogres and Trolls are theological neighbors — both serve fear-aligned evil — but Rallos Zek (war) and Cazic-Thule (fear) produce different cultures."
+  },
+
+  "kaladima": {
+    "low": "Dwarf city south. Deep stone halls. Mining folk.",
+    "medium": "South Kaladim is the main part of the Dwarven city in Butcherblock Mountains. Brell Serilis is their creator-god, worshipped through mining and craft. The Miners Guild has deep political significance here. The Estate of Unrest is a nearby haunt — genuinely dangerous.",
+    "high": "South Kaladim is the commercial heart of the Dwarven city. The Kaladim Citizens (faction 144) general populace and the Miners Guild factions (283 and 284) compete for influence. Mining is theological for Dwarves — every vein of ore is walking in Brell Serilis's footsteps. Butcherblock Mountains connect Kaladim to the rest of Faydwer — Greater Faydark, Dagnor's Cauldron, and sea routes to the mainland. The Estate of Unrest (76 NPCs, levels 1-50) lies in Dagnor's Cauldron — an haunted house dungeon with ghosts, undead, and aberrations. Ak'Anon gnomes are trading partners; the two races share Brell Serilis as patron and conduct significant commerce. The Ocean of Tears connects Faydwer to Antonica for longer trade routes."
+  },
+
+  "kaladimb": {
+    "low": "North dwarf city. Deeper halls. Miners here.",
+    "medium": "North Kaladim connects to the deeper mining operations and some of the more specialized guild halls. Kaladim's two mining guilds are based in different parts of the city — their rivalry is ancient and professional.",
+    "high": "North Kaladim holds the deeper infrastructure of Dwarven mining life. The Miners Guild rivalry between 628 and 249 is a constant undercurrent in Kaladim politics — both claim Brell Serilis's blessing for their particular tunneling methods. The deeper you go in Kaladim, the more the city resembles Brell's Underfoot domain. Merchants of Kaladim (faction 290) have established trade routes with Merchants of Qeynos (found even in this zone per database records). The route to the surface and Butcherblock is the main strategic connection. Gnome traders from Ak'Anon are the most common external presence."
+  },
+
+  "felwithea": {
+    "low": "High elf city. Fancy. Elves only mostly.",
+    "medium": "Northern Felwithe is the High Elf city in Faydwer. Tunare's worship shapes everything — nature, scholarship, and Koada'Dal racial pride. The Emerald Warriors defend the Greater Faydark. Crushbone orcs threaten the forest from the adjacent zone.",
+    "high": "Northern Felwithe houses the main institutions of Koada'Dal civilization — libraries older than human cities, temples of Tunare, and the Keepers of the Art wizard guild. The Emerald Warriors (55 NPCs, levels 38-61 in Greater Faydark) are the military arm, significantly higher level than the surrounding forest content, reflecting the serious investment in forest defense. High Elves view themselves as Tunare's first and finest children — this belief shapes every interaction, from polite condescension toward other races to fierce protection of the forest. Merchants of Felwithe (faction 325) conduct trade. The Crushbone dungeon (60 NPCs, levels 1-65) lies adjacent through Greater Faydark — Emperor Crush and later Dvinn command the orcs. Castle Mistmoore in the Lesser Faydark presents a higher-tier threat (153 NPCs, levels 15-45): the vampire lord Mayong Mistmoore's domain."
+  },
+
+  "felwitheb": {
+    "low": "South elf city. Very fancy. Important magic folk here.",
+    "medium": "Southern Felwithe holds the most senior High Elf institutions. Access here is restricted to those with established standing. The magical guilds of the Koada'Dal operate from here — Keepers of the Art and related scholarly bodies.",
+    "high": "Southern Felwithe (38 NPCs, levels 38-65) is the inner sanctum of High Elf power. The NPCs here are higher level than the northern district — this is where the Koada'Dal elite conduct their most serious scholarly and religious work. The Tunare temple's inner circle and the highest-ranking magical researchers are in the south. Non-elves who reach this far have earned exceptional standing. The Koada'Dal theological divide from the Teir'Dal (Dark Elves) is most acutely felt here — this is what was lost when Innoruuk corrupted the first Dark Elves, and High Elf NPCs carry that grief alongside their contempt."
+  },
+
+  "akanon": {
+    "low": "Gnome city. Lots of machines. Noisy. Goblins outside.",
+    "medium": "Ak'Anon is the Gnome city in Steamfont Mountains. Brell Serilis blesses their invention. The Goblins of Mountain Death are a massive threat outside the city. The gnome culture is enthusiastic and inventive — but there are rumors of something darker in the lower levels.",
+    "high": "Ak'Anon (253 NPCs, 15 racial types) is the gnome clockwork city in Steamfont. The Merchants of Ak'Anon (faction 288) run commerce. The Goblins of Mountain Death (372 total NPCs, largest hostile faction in the area) represent the primary external threat — the Steamfont Mountains are heavily contested. Critically: the Bloodsaber cult (faction 221), worshippers of Bertoxxulous the Plaguebringer, maintains a significant hidden presence in Ak'Anon's lower levels. Most gnome NPCs are completely unaware of this; those who have glimpsed it speak in whispers. The Bertoxxulous cult also has connections to the Qeynos catacombs. The King Ak'Anon faction rules the city proper. Trade with Kaladim dwarves is significant — both worship Brell Serilis and share Faydwer's underground culture."
+  },
+
+  "erudnext": {
+    "low": "Smart elf city on island. Ships go there. Very fancy.",
+    "medium": "Erudin is the Erudite city on Odus, reachable by ship from Qeynos's docks. Quellious the Tranquil is the patron deity. The High Guard of Erudin (faction 267) polices the city. Paineel, the heretic Erudite city, is the great enemy across Odus.",
+    "high": "Erudin (115 NPCs) is the Erudite city-state on Odus, accessible by ship from Qeynos's south docks. The High Guard of Erudin (faction 267) and Erudin Citizens (faction 128) form the city's power structure. Quellious worship shapes the culture — inner peace, enlightenment, and contemplation are the highest values. The Erudin Palace (79 NPCs, separate zone) holds the most senior institutions. Paineel, the heretic city founded by Erudites who embraced dark magic and Cazic-Thule worship, sits on the other side of Odus. The two cities are in permanent ideological war; the Heretics (faction 265) are Erudin's primary enemy. The Toxxulia Forest separates the city from the wider Odus terrain. Prexus, the Oceanlord, has a temple here — maritime trade and ocean respect are part of Erudite culture."
+  },
+
+  "paineel": {
+    "low": "Dark elf wizard city. Very dangerous. Dark magic.",
+    "medium": "Paineel is the heretic Erudite city on Odus, populated by Erudites who embraced dark magic that Erudin refused. The Heretics (faction 265) control the city under Cazic-Thule's blessing. The Hole dungeon lies beneath the city. Travel here is not casual.",
+    "high": "Paineel (160 NPCs) is the Erudite schismatic city perched above the Hole dungeon. The Heretics (faction 265) view themselves as the true scholars — ones who refused to blindfold themselves to half of reality. Cazic-Thule worship here is intellectual rather than primal: the Heretics study fear and death as academic subjects. The Hole (163 NPCs, levels 1-75) beneath the city is an ancient dungeon that provides both danger and power to the Heretics. Paineel guards are paranoid and aggressive — the city's existence depends on keeping Erudin at bay. Necromancy and dark magic are open professions here, unlike in Erudin where they are cause for exile. Some NPCs remember the split personally or through family history."
+  },
+
+  "cabeast": {
+    "low": "Lizard city. Military. Cold. Outsiders not welcome.",
+    "medium": "Cabilis East is the main part of the Iksar city in Kunark. The Legion of Cabilis runs the military. The Brood of Kotiz handles necromancy. Rank determines everything. Outsiders are tolerated at best, never welcomed. The Sarnak and Frogloks are enemies outside the city.",
+    "high": "Cabilis East (133 NPCs) is the major Iksar city district. The Legion of Cabilis (faction 441, 86 NPCs) is the military authority; the Brood of Kotiz (faction 443, necromancer guild) operates in permanent alliance with the Legion. The Scaled Mystics (faction 445, shaman guild) hold spiritual authority. The Crusaders of Greenmist (shadowknight guild) round out the military-magical power structure. Iksar NPCs rank-address everyone — entering NPCs are 'apprentice' until proven otherwise. The Field of Bone and Lake of Ill Omen surround the city, patrolled by the Sarnak Collective (307 total NPCs) and Frogloks of Kunark (132 total NPCs). The Burynai Legion (underground insect creatures, 98 NPCs) represents a third external threat. The ruins of the fallen Iksar empire — Sebilis, Karnor's Castle, City of Mist — lie accessible from Kunark's outer zones, haunted by undead Iksar remnants."
+  },
+
+  "cabwest": {
+    "low": "More lizard city. Quieter. Specialists here.",
+    "medium": "Cabilis West is the smaller, more specialized district of the Iksar city. Guild trainers for specific disciplines operate here. Access from the Field of Bone is the primary route. The hierarchy is the same as the East — rank determines everything.",
+    "high": "Cabilis West (50 NPCs) houses the more specialized guild infrastructure. The Iksar society's military-necromantic partnership is reflected in the architecture — the Brood of Kotiz and Legion of Cabilis faction buildings are linked. West Cabilis is quieter than East but no less rigidly hierarchical. The Warsliks Woods connect to this side of the city — a route used for patrol and resource gathering. The ancient Iksar empire's fall is always background context: Venril Sathir's treachery, the Ring of Scale war, and the destroyed capital Sebilis are the events that define Iksar identity."
+  },
+
+  "sharvahl": {
+    "low": "Cat people city. Moon. Fight things outside always.",
+    "medium": "Shar Vahl is the Vah Shir city on Luclin, the moon. The Guardians of Shar Vahl (faction 1513) defend against the Grimlings — an ongoing war in the surrounding Grimling Forest and Hollowshade Moor. The Vah Shir were displaced from Odus by Erudite magic and built their culture here.",
+    "high": "Shar Vahl (339 NPCs) is the Vah Shir capital on Luclin. The Guardians of Shar Vahl (faction 1513) and Citizens of Shar Vahl (faction 1584) are the main factions. Raja Kerrath rules the city. The Vah Shir keep no written records — their culture is entirely oral tradition. The Grimling War defines Vah Shir daily life: Grimlings of the Forest (380 total NPCs, Grimling Forest zone: 639 NPCs) press constantly against the city's borders. Hollowshade Moor is contested territory between Vah Shir and Grimlings. The Beastlord class is native to Vah Shir — the bond between warrior and warder spirit is a cultural institution, not just a profession. Shadeweaver's Thicket and Paludal Caverns connect to Shar Vahl's immediate region — both have lower-level content appropriate for new adventurers on Luclin."
+  },
+
+  "shadowhaven": {
+    "low": "Safe place on moon. Many kinds of people. Ask Daloran.",
+    "medium": "Shadow Haven is the neutral trade hub on Luclin, accessible through the Nexus spire network. Haven Defenders (faction 1509) guard it. All races are accepted but newcomers must complete trust-building tasks with Daloran and Mistala before the city fully opens to them.",
+    "high": "Shadow Haven (318 NPCs) serves as the commercial and social nexus of Luclin. The Haven Defenders (faction 1509, 176 NPCs) maintain order in a city that accepts literally every race and alignment. The Bazaar zone connects directly — Shadow Haven is the gateway to Luclin's trade economy. The Echo Caverns and Paludal Caverns connect nearby for lower-level adventuring content. The city's cosmopolitan character means every major Norrath culture has representatives here. The Nexus (26 NPCs, the spire connection zone) lies adjacent. Shadow Haven has had problems with 'dishonorable visitors' per the city's own NPCs — Adept Arnthus's welcoming speech includes this caveat. Katta Castellum and Sanctus Seru are reachable from deeper Luclin zones for those navigating the moon's political landscape."
+  },
+
+  "katta": {
+    "low": "Old empire city on moon. Smart people. Spies everywhere.",
+    "medium": "Katta Castellum is the city of the Combine Empire's loyalists on Luclin. The Validus Custodus (faction 1503) guard it. The Eye of Seru intelligence faction (faction 1485) has agents inside the city despite being Seru's spy organization. The ancient conflict with Sanctus Seru defines this city's politics.",
+    "high": "Katta Castellum (448 NPCs, the largest and most faction-complex Luclin city) was founded by loyalists of Tsaph Katta after Seru's betrayal shattered the Combine Empire. Lcea led the survivors to Luclin. The Validus Custodus (faction 1503, 229 NPCs) and Hand Legionnaries (faction 1541, 165 NPCs) defend the city. The Eye of Seru (faction 1485, 88 NPCs) has infiltrated Katta despite being the spy arm of the rival city — guards know this and watch for it. The Autarkic shadow vampires (Order of Autarkic Umbrage) operate covertly within Katta, adding another security dimension. The city is cosmopolitan — multiple races coexist under the Combine legacy ideal. Sanctus Seru (689 NPCs, the rival city) is reachable but hostile. Tsaph Katta's name is invoked as a moral foundation here, similar to how other cities invoke their patron deities."
+  },
+
+  "ecommons": {
+    "low": "Wide land east of big city. Orcs here. Walk careful.",
+    "medium": "The East Commonlands is the main travel zone east of Freeport. Clan Deathfist orcs (levels 1-20, 24+ NPCs) are the primary low-level threat. The Freeport Militia patrols extend into this zone with corrupt agents. Shadowed Men (levels 25-26) are a mysterious presence — avoid them. This connects west to Freeport and east toward Kithicor and the Karana Plains.",
+    "high": "East Commonlands (170 NPCs, levels 1-65) is the primary overland route out of Freeport. Clan Deathfist orcs (Death Fist Orcs faction, 24 NPCs, levels 1-20) are the most common threat — both the Militia and Steel Warriors offer bounty work against them. Freeport Militia patrol NPCs (20 NPCs, levels 11-41) also operate here, some as corrupt agents. Dervish Cutthroat bandits appear in the west section (levels 10-14). Shadowed Men (3 NPCs, levels 25-26) are a lore-significant mystery entity — avoid interaction if possible at low levels. The Nexus spire sits in the West Commonlands beyond, providing Luclin access. Kithicor Forest connects to the northeast — remember the nightfall undead rule."
+  },
+
+  "commons": {
+    "low": "Flat land west of Freeport. Bandits here. Orcs too.",
+    "medium": "West Commonlands connects Freeport to Befallen dungeon and the Nexus Luclin spire. Dervish Cutthroat bandits (levels 10-14) patrol the roads. The Nexus spire sits here — a gate to Luclin for those who know how to use it. Werewolves appear at levels 20-32.",
+    "high": "West Commonlands (115 NPCs, levels 1-99) is the western approach to Freeport's trade network. Dervish Cutthroats (11 NPCs, levels 10-14, mixed human and half-elf) prey on travelers. Deathfist orc scouts (12 NPCs, levels 1-15) push into this zone from the east. Werewolves (5 NPCs, levels 20-32) appear in sections of the zone — avoid unless prepared. Will-O-Wisps (3 NPCs) are present. Befallen dungeon (98 NPCs, levels 1-61) connects from the southwest — undead-infested, with the Bloodsaber cult connections extending even here. The Nexus Luclin spire offers moon access. Shadowed Men also appear here (3 NPCs, levels 25-26)."
+  },
+
+  "gfaydark": {
+    "low": "Big elf forest. Orcs attack. Treehouse city up high.",
+    "medium": "The Greater Faydark is the elven forest of Faydwer, home to the Wood Elf treehouse city Kelethin and adjacent to High Elf Felwithe. The Crushbone orcs (21 NPCs, levels 1-12) are a constant threat in the forest. The Emerald Warriors (55 NPCs, levels 38-61) are the elite defenders. Crushbone dungeon connects from the east.",
+    "high": "Greater Faydark (251 NPCs, levels 1-70) is the richest zone in Faydwer for NPC variety. Kelethin is the Wood Elf treehouse city built on platforms in the canopy — Faydarks Champions are the ranger defenders. Felwithe (High Elves, Tunare faction) connects from the south. The Emerald Warriors (faction 162, 55 NPCs, levels 38-61) are the elite Felwithe-backed defenders — significantly higher level than the surrounding content, representing serious military investment. Crushbone Orcs (21 NPCs in Greater Faydark, levels 1-12) are omnipresent threats; the Crushbone dungeon (60 NPCs, levels 1-65, Emperor Crush then Dvinn in command) connects from the east. Fairies (10 NPCs, levels 6-21) are present and not always hostile. Castle Mistmoore lies in the Lesser Faydark (accessible via the Lesser Faydark zone connection) — Mayong Mistmoore's vampire dungeon (153 NPCs, levels 15-45) is a major threat to all of Faydwer. Butcherblock Mountains connect south toward Kaladim."
+  },
+
+  "kithicor": {
+    "low": "Forest between cities. Peaceful daytime. Deadly night. Do not.",
+    "medium": "Kithicor Forest connects Qeynos Hills to the Karana Plains. During daylight it is a normal low-level forest. After dark, the zone fills with high-level undead that will kill unprepared travelers — this is the defining characteristic. The undead are the result of an ancient battle involving the dead wizard Bloody Kithicor.",
+    "high": "Kithicor Forest (190 NPCs, levels 1-99, 29 race types) is the most lore-significant outdoor zone in Classic EQ. During daylight: rangers, scouts, woodland animals, levels 1-20. After nightfall: levels 25-99 undead rise throughout the entire zone, instantly lethal to travelers who don't know this. The cause is an ancient battle between the wizard Bloody Kithicor and his former allies — the dead now walk eternally at night. Day population includes 32 faction groups representing the complex relationship between Qeynos-aligned factions and the Karana Plains factions. The zone connects west to Qeynos Hills and east to Eastern Plains of Karana — the main Antonica overland route runs through here, which makes the nightfall curse particularly dangerous for unaware travelers."
+  },
+
+  "blackburrow": {
+    "low": "Bad dog dungeon. Dark. Gnolls everywhere. Dangerous.",
+    "medium": "Blackburrow is the Sabertooth gnoll dungeon, the primary threat to Qeynos. The gnolls are organized and dangerous. Levels 1-30 throughout. This dungeon lies between Halas and Qeynos, making travel between the two barbarian and human cities genuinely hazardous.",
+    "high": "Blackburrow (46 NPCs, levels 1-30, 5 race types) is the gnoll stronghold between Everfrost Peaks and Qeynos Hills. The Sabertooth gnoll factions are organized under leaders like Fippy Darkpaw, who is famous for repeatedly testing the Qeynos gates. The dungeon has multiple levels — upper sections are lower level, deeper sections push toward 30. The dungeon connects Everfrost Peaks (north, toward Halas) and Qeynos Hills (south, toward Qeynos). Travelers on the Halas-Qeynos route either fight through here or do not make the journey easily. Gnoll pups, hunters, warriors, and shamans represent the gnoll military and spiritual hierarchy. Blackburrow gnoll factions have faction hits to Guards of Qeynos and allied factions — killing gnolls here builds standing in Qeynos."
+  },
+
+  "crushbone": {
+    "low": "Orc dungeon. Organized orcs. Very dangerous even small ones.",
+    "medium": "Crushbone is the Crushbone Orc dungeon adjacent to Greater Faydark. Emperor Crush (and later the dark elf commander Dvinn) leads. The orcs are organized militarily and pose a constant threat to Kelethin. Levels 1-65 throughout.",
+    "high": "Crushbone (60 NPCs, levels 1-65) is the signature low-to-mid level dungeon of Faydwer, adjacent to Greater Faydark. The Crushbone Orcs (faction 234, 85 total NPCs) are militarily organized under their emperor — this is not a random orc camp but a structured military force. Emperor Crush rules the lower levels; the dark elf commander Dvinn commands the upper. The presence of a dark elf commander is significant — Neriak has influence even in orc military operations. The dungeon represents the existential threat to Kelethin: if Crushbone's orcs had the numbers to push out in force, the Wood Elf city could fall. This is why the Emerald Warriors (levels 38-61) are stationed in Greater Faydark — elite defense against an organized military threat."
+  },
+
+  "butcher": {
+    "low": "Mountains with dwarves and ships. Big zone. Many things.",
+    "medium": "Butcherblock Mountains connects Kaladim (south), Greater Faydark (north), and the docks to the Ocean of Tears. This is a major transit zone for Faydwer travel. The mountains have various NPCs from multiple factions at different levels up to 99.",
+    "high": "Butcherblock Mountains (212 NPCs, levels 1-99, 25 racial types, 36 faction groups) is Faydwer's primary transit zone. South Kaladim connects from the west. Greater Faydark connects to the north. The docks on the east coast connect to the Ocean of Tears — ships to Antonica. Dagnor's Cauldron connects from the south, providing access to the Estate of Unrest dungeon. The mountain terrain has scattered NPCs from many factions: Kaladim Citizen (faction 144 and 696) trade convoys, gnome merchants from Ak'Anon, and various natural creatures across the level range. Griffins appear at higher levels in certain sections. The zone serves as the economic and travel backbone of Faydwer."
+  },
+
+  "everfrost": {
+    "low": "Very cold. Bears and wolves. Gnolls from south.",
+    "medium": "Everfrost Peaks surrounds Halas and connects south to Blackburrow. Polar bears, wolves, and mammoths are the primary wildlife threats at levels 2-50. The cold itself is the defining character of the zone — the Barbarian city of Halas endures here. Permafrost Caverns dungeon lies deeper in the zone.",
+    "high": "Everfrost Peaks (105 NPCs, levels 1-99) is the northernmost accessible zone in Classic Antonica. Halas (93 NPCs) sits within the zone. The wildlife: polar bears (levels 5-15), wolves (levels 2-18), snow cougars, and mammoths (large creatures, social groups) at various levels up to the 50s. The Sabertooth gnolls occasionally push north from Blackburrow. Permafrost Caverns (103 NPCs, levels 1-55) is a dungeon accessible from the northwest — inhabited by ice goblins, permafrost creatures, and the Ice Giants of Vox. Lady Vox is a legendary dragon within Permafrost at the deepest levels. The frozen landscape creates serious travel hazards — multiple faction groups claim territory in different sections."
+  },
+
+  "nektulos": {
+    "low": "Dark elf forest. Dark. Priests of good god hunted here.",
+    "medium": "Nektulos Forest connects to Neriak's Foreign Quarter. Dark Elf factions patrol here, and priests of Rodcet Nife have established a presence — which Neriak clerics are expected to hunt. Various dark elf factions both hostile and city-allied operate in the forest.",
+    "high": "Nektulos Forest (147 NPCs, levels 1-99, 28 race types, 16 faction groups) is the zone between Neriak and the broader Antonica network. Neriak connects from the west via the Foreign Quarter entrance. The forest has Priests of Rodcet Nife NPCs who serve as targets for Neriak cleric armor quests — their presence in Nektulos is deliberate lore placement, as they represent the theological enemy in the Innoruuk-vs-Rodcet conflict. Multiple dark elf faction groups operate in the forest: some hostile to outsiders, some aligned with Neriak. The zone connects east toward the Commonlands and south toward the orc areas. Night makes all outdoor zones more dangerous, but Nektulos's dark canopy makes this feel permanent."
+  },
+
+  "innothule": {
+    "low": "Swamp near troll city. Frogs and bugs and things.",
+    "medium": "Innothule Swamp connects to Grobb and the Guk dungeon complex. Frogloks are present throughout — the natural enemies of the Trolls. Fungus men, kobolds, and alligators fill the swamp at low levels. Guk dungeons (Froglok stronghold) are accessible from deeper in the swamp.",
+    "high": "Innothule Swamp (78 NPCs, levels 1-70, 20 race types, 22 faction groups) is the contested territory between Grobb and the Guk dungeon system. Frogloks of Guk (faction 251) appear at levels 3-11 in the swamp itself. Fungus men (levels 1-10) and kobolds (levels 2-18) fill the lower-level content. Old Guk connects from the northwest (170 NPCs, levels 2-60) — the main Froglok dungeon with both living and undead Froglok factions. City of Guk connects from deeper (143 NPCs, levels 3-99). Both Guk dungeons are the primary mid-level dungeon complex of Classic EQ. The swamp's terrain makes travel slow and visibility poor — ambushes are a real concern even on familiar paths."
+  },
+
+  "misty": {
+    "low": "Halfling forest outside. Goblins in mist. Some walls.",
+    "medium": "Misty Thicket is the outdoor zone adjacent to Rivervale. Halfling guards patrol the borders. Goblins and undead are the primary threats at various levels. The Runnyeye goblin dungeon connects from the northern section.",
+    "high": "Misty Thicket (134 NPCs, levels 1-65, 19 race types, 20 faction groups) directly borders Rivervale and is patrolled by Halfling guards (Guardians of the Vale, faction 263). Rivervale connects from the southeast. Runnyeye dungeon (The Liberated Citadel of Runnyeye, 145 NPCs, levels 1-60) connects from the north — goblin-controlled with the Runnyeye Clan as the dominant faction. Various goblin types (levels 1-15) appear in the thicket itself. Karana Plains connect through the eastern exits for those heading toward the mainland cities. The mist that gives the thicket its name is atmospheric but not mechanically dangerous — the goblins who use it for cover are the actual threat."
+  },
+
+  "feerrott": {
+    "low": "Wet jungle. Big lizards. Orc city and lizard temple both here.",
+    "medium": "The Feerrott is the swamp zone surrounding Oggok. Lizardmen are the dominant hostile force — both Allize Taeew (38 NPCs, levels 18-49) and Allize Volew factions. The Temple of CazicThule lies deep in the zone. Travel between Oggok and the rest of Norrath passes through here.",
+    "high": "The Feerrott (174 NPCs, levels 1-65, 24 race types, 16 faction groups) is the wetland zone housing both Oggok and the Temple of CazicThule. Oggok (Ogre city) sits to the southwest. Allize Taeew Lizardmen (38 NPCs, levels 18-49) are the zone's primary mid-level threat — servants of Cazic-Thule. Allize Volew (6 NPCs, levels 4-26) provide a lower-level Lizardman presence. The Temple of CazicThule dungeon (190 NPCs, levels 1-65) connects from the west — the Accursed Temple is a significant dungeon complex with Cazic-Thule as its end boss. The zone also connects toward the Rathe Mountains to the northeast. Ogres moving between their city and the outside world must cross this zone constantly."
+  },
+
+  "lakerathe": {
+    "low": "Lake. Many kinds of things here. Giants in some places.",
+    "medium": "Lake Rathetear is a multi-faction outdoor zone with a wide level range. Aviak bird-people, human bandits, and various aquatic creatures share the space. Giants appear in certain sections at higher levels. The zone connects toward Rathe Mountains and serves as a travel hub between southern Antonica zones.",
+    "high": "Lake Rathetear (143 NPCs, levels 1-99, 23 race types, 18 faction groups) is a major outdoor hub zone of southern Antonica. Aviaks (bird-people, multiple factions) are the most distinctive inhabitants at various levels. Hill Giants appear at the higher end (levels 35-45) in the Rathe Mountains connection areas. Human bandit groups patrol sections of the zone. The aquatic environment around the lake itself has underwater creatures. The zone connects to Rathe Mountains (north), which has the highest faction complexity of any zone (49 distinct groups, 328 NPCs). Befallen dungeon connects from the west (98 NPCs, levels 1-61) — undead-focused dungeon with Bloodsaber cult connections. The zone is large enough that different sections feel like different environments."
+  },
+
+  "befallen": {
+    "low": "Dark dungeon. Dead things inside. Very bad.",
+    "medium": "Befallen is an undead dungeon in the West Commonlands area, with Bloodsaber cult connections. Multiple undead types from levels 1-61. The Bloodsaber cult, servants of Bertoxxulous the Plaguebringer, has an active presence here and in the Qeynos catacombs.",
+    "high": "Befallen (98 NPCs, levels 1-61, 13 race types, 8 faction groups) is the primary undead dungeon accessible from West Commonlands. The Bloodsaber cult (faction 221) has a significant presence here — they are Bertoxxulous worshippers who also maintain cells in Ak'Anon and the Qeynos Aqueducts. The dungeon has multiple levels with increasingly dangerous undead: skeletons and zombies in upper sections, more dangerous spectral and bone-related undead deeper. Lord Grimrot is a named undead boss within. The dungeon's lore significance: it represents the visible face of the Bertoxxulous corruption that hidden cells in Qeynos and Ak'Anon represent in secret form. Killing Bloodsabers here affects faction standing with all Bloodsaber-aligned groups."
+  }
+}
