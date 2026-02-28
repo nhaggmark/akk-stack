@@ -516,9 +516,10 @@ end
 
 -- Equipment: deferred — display instructions to use trade window instead
 function companion.cmd_equip(npc, client, args)
-    client:Message(15, "To give items to your companion, right-click them to")
-    client:Message(15, "open a trade window, then place items in the trade.")
-    client:Message(15, "Items will be auto-equipped into appropriate slots.")
+    client:Message(15, "To give items to your companion: pick up the item from")
+    client:Message(15, "your inventory (left-click to place it on your cursor),")
+    client:Message(15, "then left-click your companion to open the trade window.")
+    client:Message(15, "Place items and click Trade. They will be auto-equipped.")
 end
 
 -- Equipment: return item from a named slot, or all items if slot is "all"

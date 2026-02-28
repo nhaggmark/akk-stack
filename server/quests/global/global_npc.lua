@@ -57,6 +57,107 @@ function event_say(e)
     -- Sidecar unavailable: silent fallthrough (NPC stays quiet, no error)
 end
 
+-- Slot integer -> name string for GiveSlot (must match SlotNameToSlotID in companion.cpp).
+-- PowerSource (21) is intentionally omitted — companions do not use it.
+local COMPANION_SLOT_NAMES = {
+    [0]  = "charm",    [1]  = "ear1",    [2]  = "head",    [3]  = "face",
+    [4]  = "ear2",     [5]  = "neck",    [6]  = "shoulder",[7]  = "arms",
+    [8]  = "back",     [9]  = "wrist1",  [10] = "wrist2",  [11] = "range",
+    [12] = "hands",    [13] = "primary", [14] = "secondary",[15] = "finger1",
+    [16] = "finger2",  [17] = "chest",   [18] = "legs",    [19] = "feet",
+    [20] = "waist",    [22] = "ammo",
+}
+
+-- Determine the first equipment slot valid for this item based on its Slots bitmask.
+-- Returns slot_id (0-22) or nil if no valid equipment slot is found.
+local function companion_find_slot(slots_bitmask)
+    for slot_id = 0, 22 do
+        if slot_id ~= 21 then  -- skip PowerSource
+            local bit_set = math.floor(slots_bitmask / (2 ^ slot_id)) % 2
+            if bit_set == 1 and COMPANION_SLOT_NAMES[slot_id] then
+                return slot_id
+            end
+        end
+    end
+    return nil
+end
+
+-- Trade handler: equip items traded to a companion by their owner.
+-- Non-companion NPCs: ignored (items are returned automatically by the engine).
+function event_trade(e)
+    if not e.self:IsCompanion() then
+        return
+    end
+
+    -- Ownership check: only the owner may trade equipment to their companion
+    local owner_char_id = e.self:GetOwnerCharacterID()
+    if owner_char_id == 0 or owner_char_id ~= e.other:CharacterID() then
+        e.other:Message(15, "Only " .. e.self:GetCleanName() .. "'s owner can give them equipment.")
+        -- Return all traded items to the sender
+        for i = 1, 4 do
+            local inst = e.trade["item" .. i]
+            if inst and inst.valid and inst:GetID() ~= 0 then
+                e.other:SummonItem(inst:GetID())
+            end
+        end
+        if e.trade.platinum and e.trade.platinum > 0 then
+            e.other:AddMoneyToPP(0, 0, 0, e.trade.platinum, true)
+        end
+        return
+    end
+
+    -- Return any money (companions cannot hold coins)
+    if e.trade.platinum and e.trade.platinum > 0 then
+        e.other:AddMoneyToPP(0, 0, 0, e.trade.platinum, true)
+    end
+    if e.trade.gold and e.trade.gold > 0 then
+        e.other:AddMoneyToPP(0, 0, e.trade.gold, 0, true)
+    end
+    if e.trade.silver and e.trade.silver > 0 then
+        e.other:AddMoneyToPP(0, e.trade.silver, 0, 0, true)
+    end
+    if e.trade.copper and e.trade.copper > 0 then
+        e.other:AddMoneyToPP(e.trade.copper, 0, 0, 0, true)
+    end
+
+    -- Equip each traded item
+    local equipped_count = 0
+    for i = 1, 4 do
+        local inst = e.trade["item" .. i]
+        if inst and inst.valid then
+            local item_id = inst:GetID()
+            if item_id and item_id ~= 0 then
+                local item_data = inst:GetItem()
+                local slots_bitmask = item_data and item_data:Slots() or 0
+                local slot_id = companion_find_slot(slots_bitmask)
+
+                if slot_id then
+                    local slot_name = COMPANION_SLOT_NAMES[slot_id]
+                    -- Return any item already in this slot before overwriting it
+                    e.self:GiveSlot(e.other, slot_name)
+                    -- Equip the new item
+                    local ok = e.self:GiveItem(item_id, slot_id)
+                    if ok then
+                        equipped_count = equipped_count + 1
+                    else
+                        -- GiveItem rejected — return item to player
+                        e.other:SummonItem(item_id)
+                    end
+                else
+                    -- No valid equipment slot for this item
+                    e.other:Message(15, e.self:GetCleanName() ..
+                        " cannot equip that item.")
+                    e.other:SummonItem(item_id)
+                end
+            end
+        end
+    end
+
+    if equipped_count > 0 then
+        e.self:Say("Thank you.")
+    end
+end
+
 function event_spawn(e)
     -- peq_halloween
     if (eq.is_content_flag_enabled("peq_halloween")) then
