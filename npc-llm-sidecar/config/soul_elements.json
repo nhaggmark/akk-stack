@@ -205,9 +205,9 @@
     },
 
     "1077": {
-      "courage": 2, "honesty": 2, "loyalty": 3, "piety": 1,
-      "desires": ["recognition"], "fears": ["Bloodsaber corruption in the guard"],
-      "disposition": "rooted"
+      "honesty": 2, "generosity": 1, "curiosity": 1,
+      "desires": ["steady trade"], "fears": ["supply routes disrupted by gnolls"],
+      "disposition": "content"
     },
     "466029": {
       "courage": 2, "honesty": 2, "loyalty": 3, "piety": 1, "curiosity": 1,
