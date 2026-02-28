@@ -537,7 +537,10 @@ function companion.cmd_unequip(npc, client, args)
         npc:Say("As you wish.")
         npc:GiveAll(client)
     else
-        npc:GiveSlot(client, slot_name)
+        local returned = npc:GiveSlot(client, slot_name)
+        if not returned then
+            client:Message(15, npc:GetCleanName() .. " has nothing equipped in that slot.")
+        end
     end
 end
 
