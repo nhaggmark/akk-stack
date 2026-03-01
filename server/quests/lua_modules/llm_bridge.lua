@@ -58,6 +58,12 @@ end
 function llm_bridge.is_eligible(e)
     if not config.enabled then return false end
 
+    -- Companions are always eligible for LLM conversation.
+    -- They retain their original NPC type ID, so the local-script and body-type
+    -- filters would incorrectly reject them. Non-prefixed speech to a companion
+    -- should always reach the LLM.
+    if e.self:IsCompanion() then return true end
+
     -- Skip NPCs whose local script already handles event_say
     if has_local_say_handler(e) then return false end
 
@@ -124,7 +130,7 @@ function llm_bridge.build_context(e)
         npc_class = e.self:GetClass(),
         npc_level = e.self:GetLevel(),
         npc_int = e.self:GetINT(),
-        npc_primary_faction = e.self:GetPrimaryFaction(),
+        npc_primary_faction = e.self.GetPrimaryFaction and e.self:GetPrimaryFaction() or 0,
         npc_gender = e.self:GetGender(),
         npc_is_merchant = (e.self:GetClass() == 41),
         npc_deity = e.self:GetDeity(),

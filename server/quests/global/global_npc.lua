@@ -24,10 +24,19 @@ function event_say(e)
     end
 
     -- Check if LLM is enabled and NPC is eligible (INT, body type, opt-out)
+    local elig_ok, elig_err = pcall(function() return llm_bridge.is_eligible(e) end)
+    if not elig_ok then
+        e.other:Message(15, "[DEBUG] is_eligible error: " .. tostring(elig_err))
+        return
+    end
     if not llm_bridge.is_eligible(e) then return end
 
     -- Get faction data for this player/NPC pair
-    local faction_level = e.other:GetFaction(e.self)
+    local fac_ok, faction_level = pcall(function() return e.other:GetFaction(e.self) end)
+    if not fac_ok then
+        e.other:Message(15, "[DEBUG] GetFaction error: " .. tostring(faction_level))
+        faction_level = 5 -- default to indifferent
+    end
     local faction_data = llm_faction[faction_level] or llm_faction[5]
 
     -- Check hostile cooldown (Threatening/Scowling NPCs ignore repeated speech)
@@ -44,8 +53,16 @@ function event_say(e)
     llm_bridge.send_thinking_indicator(e)
 
     -- Build context and call sidecar
-    local context = llm_bridge.build_context(e)
-    local response = llm_bridge.generate_response(context, e.message)
+    local ctx_ok, context = pcall(function() return llm_bridge.build_context(e) end)
+    if not ctx_ok then
+        e.other:Message(15, "[DEBUG] build_context error: " .. tostring(context))
+        return
+    end
+    local gen_ok, response = pcall(function() return llm_bridge.generate_response(context, e.message) end)
+    if not gen_ok then
+        e.other:Message(15, "[DEBUG] generate_response error: " .. tostring(response))
+        return
+    end
 
     if response then
         e.self:Say(response)
