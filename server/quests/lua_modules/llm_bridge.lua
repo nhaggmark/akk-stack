@@ -130,7 +130,7 @@ function llm_bridge.build_context(e)
         npc_class = e.self:GetClass(),
         npc_level = e.self:GetLevel(),
         npc_int = e.self:GetINT(),
-        npc_primary_faction = e.self.GetPrimaryFaction and e.self:GetPrimaryFaction() or 0,
+        npc_primary_faction = (function() local ok, v = pcall(function() return e.self:GetPrimaryFaction() end); return ok and v or 0 end)(),
         npc_gender = e.self:GetGender(),
         npc_is_merchant = (e.self:GetClass() == 41),
         npc_deity = e.self:GetDeity(),
