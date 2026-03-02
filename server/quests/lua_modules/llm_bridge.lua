@@ -130,7 +130,7 @@ function llm_bridge.build_context(e)
         npc_class = e.self:GetClass(),
         npc_level = e.self:GetLevel(),
         npc_int = e.self:GetINT(),
-        npc_primary_faction = e.self.GetPrimaryFaction and e.self:GetPrimaryFaction() or 0,
+        npc_primary_faction = (function() local ok, v = pcall(function() return e.self:GetPrimaryFaction() end); return ok and v or 0 end)(),
         npc_gender = e.self:GetGender(),
         npc_is_merchant = (e.self:GetClass() == 41),
         npc_deity = e.self:GetDeity(),
@@ -161,7 +161,11 @@ end
 -- Call the LLM sidecar via curl and return the response string.
 -- Returns nil on any error (sidecar down, timeout, bad JSON, nil response field).
 -- Blocking: pauses zone process for up to config.timeout_seconds.
+-- Failures are logged to QuestErrors (category 87) for zone-log visibility.
 function llm_bridge.generate_response(context, message)
+    local LOG_ERRORS = 87  -- Logs.QuestErrors: console + gmsay
+    local LOG_DEBUG  = 38  -- Logs.QuestDebug: gmsay only
+
     local request = {
         npc_type_id         = context.npc_type_id,
         npc_name            = context.npc_name,
@@ -199,20 +203,54 @@ function llm_bridge.generate_response(context, message)
         config.sidecar_url
     )
 
+    local result = nil
+
     local handle = io.popen(cmd)
-    if not handle then return nil end
+    if not handle then
+        -- io.popen failed — fall back to os.execute + temp file
+        eq.log(LOG_ERRORS, "llm_bridge: io.popen returned nil for NPC " ..
+            tostring(context.npc_name) .. " — trying os.execute fallback")
+        local tmp = os.tmpname()
+        local exec_cmd = cmd:gsub("2>/dev/null", ">" .. tmp .. " 2>/dev/null")
+        local rc = os.execute(exec_cmd)
+        if rc == 0 then
+            local f = io.open(tmp, "r")
+            if f then
+                result = f:read("*a")
+                f:close()
+            end
+        else
+            eq.log(LOG_ERRORS, "llm_bridge: os.execute fallback also failed for NPC " ..
+                tostring(context.npc_name))
+        end
+        os.remove(tmp)
+    else
+        result = handle:read("*a")
+        handle:close()
+    end
 
-    local result = handle:read("*a")
-    handle:close()
-
-    if not result or result == "" then return nil end
+    if not result or result == "" then
+        eq.log(LOG_ERRORS, "llm_bridge: empty response from sidecar for NPC " ..
+            tostring(context.npc_name) .. " player=" .. tostring(context.player_name))
+        return nil
+    end
 
     local ok, decoded = pcall(json.decode, result)
-    if not ok or not decoded then return nil end
+    if not ok or not decoded then
+        eq.log(LOG_ERRORS, "llm_bridge: JSON decode failed for NPC " ..
+            tostring(context.npc_name) .. " raw=" .. tostring(result):sub(1, 80))
+        return nil
+    end
 
     -- decoded.response may be json.null if sidecar returned {"response": null}
-    if decoded.response == nil or decoded.response == json.null then return nil end
+    if decoded.response == nil or decoded.response == json.null then
+        eq.log(LOG_ERRORS, "llm_bridge: sidecar returned null response for NPC " ..
+            tostring(context.npc_name) .. " player=" .. tostring(context.player_name))
+        return nil
+    end
 
+    eq.log(LOG_DEBUG, "llm_bridge: response OK for NPC " ..
+        tostring(context.npc_name) .. " player=" .. tostring(context.player_name))
     return decoded.response
 end
 
