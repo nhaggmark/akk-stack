@@ -123,10 +123,10 @@ function companion_context.get_recruited_zone_name(zone_id)
     -- the current zone. For the recruited zone (possibly different), use DB.
     local ok, result = pcall(function()
         local db = Database()
-        local stmt = db:Prepare("SELECT short_name, long_name FROM zone WHERE zoneidnumber = ? LIMIT 1")
-        stmt:Execute({zone_id})
-        local row = stmt:FetchHash()
-        db:Close()
+        local stmt = db:prepare("SELECT short_name, long_name FROM zone WHERE zoneidnumber = ? LIMIT 1")
+        stmt:execute({zone_id})
+        local row = stmt:fetch_hash()
+        db:close()
         return row
     end)
 

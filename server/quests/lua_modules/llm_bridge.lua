@@ -153,11 +153,15 @@ function llm_bridge.build_context(e)
     -- to switch from standard NPC system prompt to companion framing.
     if e.self:IsCompanion() then
         local ok, comp_ctx_lib = pcall(require, "companion_context")
-        if ok and comp_ctx_lib then
+        if not ok then
+            eq.log(87, "llm_bridge: companion_context require failed: " .. tostring(comp_ctx_lib))
+        elseif comp_ctx_lib then
             local ok2, companion_fields = pcall(function()
                 return comp_ctx_lib.build(e.self, e.other)
             end)
-            if ok2 and companion_fields then
+            if not ok2 then
+                eq.log(87, "llm_bridge: companion_context.build failed: " .. tostring(companion_fields))
+            elseif companion_fields then
                 for k, v in pairs(companion_fields) do
                     context[k] = v
                 end

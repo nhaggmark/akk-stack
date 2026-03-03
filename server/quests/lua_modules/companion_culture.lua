@@ -497,7 +497,7 @@ function companion_culture._get_event_prompt(event_type, companion_type, npc_rac
     elseif event_type == "self_preservation" then
         -- Disengagement dialogue — race-specific for mercenaries
         if companion_type == 1 then
-            return companion_culture._get_self_preservation_context(npc_race)
+            return companion_culture.get_self_preservation_context(npc_race)
         else
             -- Companions (loyal type) don't typically use this event
             return "You are wounded and pulling back momentarily. 1-2 sentences."
