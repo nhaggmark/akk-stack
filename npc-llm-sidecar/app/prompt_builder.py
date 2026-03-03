@@ -158,6 +158,19 @@ def build_system_prompt(req, memories: list[dict] | None = None) -> str:
         if req.evolution_context:
             lines.append(req.evolution_context)
             lines.append("")
+        # Home zone culture: inject deity and cultural roots as backstory
+        home_zone = req.recruited_zone_short or req.zone_short
+        home_culture = _zone_cultures.get(home_zone)
+        if home_culture:
+            lines.append(
+                f"You come from a place with {home_culture['culture']} values."
+            )
+            if home_culture.get("patron_deity"):
+                lines.append(
+                    f"Your home city's patron deity is {home_culture['patron_deity']}. "
+                    "This faith shaped your upbringing and worldview."
+                )
+            lines.append("")
     else:
         # Standard NPC: inject zone cultural context if available
         culture = _zone_cultures.get(req.zone_short)

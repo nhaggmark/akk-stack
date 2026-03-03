@@ -28,6 +28,7 @@ from .prompt_builder import (
     RACE_NAMES,
     CLASS_NAMES,
     format_memory_context,
+    _zone_cultures,
 )
 
 logger = logging.getLogger("npc-llm")
@@ -206,6 +207,26 @@ class PromptAssembler:
             truncated_evolution = self._truncate_to_budget(req.evolution_context, self.budget_global)
             if truncated_evolution:
                 lines.append(truncated_evolution)
+                lines.append("")
+
+        # --- Layer 2.5: Home zone culture (deity, cultural identity from origin) ---
+        # Companions lose zone culture when they leave their post. Inject their
+        # home zone's cultural context as backstory so they retain religious
+        # affiliation and cultural roots.
+        home_zone = req.recruited_zone_short or req.zone_short
+        home_culture = _zone_cultures.get(home_zone)
+        if home_culture:
+            culture_parts: list[str] = []
+            culture_parts.append(
+                f"You come from a place with {home_culture['culture']} values."
+            )
+            if home_culture.get("patron_deity"):
+                culture_parts.append(
+                    f"Your home city's patron deity is {home_culture['patron_deity']}. "
+                    "This faith shaped your upbringing and worldview."
+                )
+            if culture_parts:
+                lines.append(" ".join(culture_parts))
                 lines.append("")
 
         # --- Layer 3: Companion situational awareness ---
