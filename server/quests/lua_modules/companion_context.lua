@@ -176,12 +176,20 @@ end
 function companion_context.build(npc, client)
     local ctx = {}
 
-    -- Basic companion flags
+    -- Basic companion flags — these call Lua_Companion and Lua_Mob methods directly.
+    -- Wrapped in pcall: if any method is nil (luabind inheritance gap) the error is
+    -- logged via gmsay and build() returns nil so llm_bridge logs the failure too.
     ctx.is_companion = true
-    ctx.companion_type = npc:GetCompanionType()
-    ctx.companion_stance = npc:GetStance()
-    ctx.companion_name = npc:GetCleanName()
-    ctx.race_culture_id = npc:GetRace()
+    local ok_basic, err_basic = pcall(function()
+        ctx.companion_type = npc:GetCompanionType()
+        ctx.companion_stance = npc:GetStance()
+        ctx.companion_name = npc:GetCleanName()
+        ctx.race_culture_id = npc:GetRace()
+    end)
+    if not ok_basic then
+        eq.log(87, "companion_context.build: basic fields failed: " .. tostring(err_basic))
+        return nil
+    end
 
     -- Time active (new C++ getter)
     local time_active = 0
@@ -233,7 +241,8 @@ function companion_context.build(npc, client)
     end
 
     -- Combat state and health
-    ctx.in_combat = npc:IsEngaged()
+    local ok_engaged, engaged_val = pcall(function() return npc:IsEngaged() end)
+    ctx.in_combat = ok_engaged and engaged_val or false
     local hp_ok, hp_ratio = pcall(function() return npc:GetHPRatio() end)
     ctx.hp_percent = (hp_ok and hp_ratio) and math.floor(hp_ratio) or 100
     ctx.recently_damaged = ctx.hp_percent < 80
