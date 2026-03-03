@@ -205,4 +205,94 @@ function event_spawn(e)
             e.self:ChangeGender(2);
         end
     end
+
+    -- Companion commentary timer setup.
+    -- When a companion spawns (or enters a zone), start the periodic commentary
+    -- check timer and record baseline entity variables for context change detection.
+    if e.self:IsCompanion() then
+        local now = tostring(os.time())
+        local interval_ms = (llm_config.companion_commentary_min_interval_s or 600) * 1000
+        local timer_name = "comp_commentary_" .. e.self:GetID()
+        eq.set_timer(timer_name, interval_ms)
+        e.self:SetEntityVariable("comp_spawn_time",        now)
+        e.self:SetEntityVariable("comp_last_zone",         eq.get_zone_short_name())
+        e.self:SetEntityVariable("comp_last_comment_time", "")
+        e.self:SetEntityVariable("comp_named_kill",        "0")
+        e.self:SetEntityVariable("comp_recent_kills",      "")
+    end
+end
+
+-- Timer handler for companion unprompted commentary.
+-- Fires every companion_commentary_min_interval_s for each companion entity.
+function event_timer(e)
+    -- Companion commentary timers are named "comp_commentary_<entity_id>"
+    if e.timer and e.timer:sub(1, 16) == "comp_commentary_" and e.self:IsCompanion() then
+        local ok, companion_commentary = pcall(require, "companion_commentary")
+        if ok and companion_commentary then
+            companion_commentary.check_and_speak(e.self)
+        end
+        -- Restart the timer for the next check cycle
+        local interval_ms = (llm_config.companion_commentary_min_interval_s or 600) * 1000
+        eq.set_timer(e.timer, interval_ms)
+    end
+end
+
+-- Zone-wide death tracking for companion recent-kill context.
+-- When any NPC dies in the zone, update all companion entities with the kill.
+-- Tracks the last 5 killed NPC names in "comp_recent_kills" entity variable.
+function event_death_zone(e)
+    if not e.self then return end
+
+    -- Skip companions, pets, and unnamed targets (no interesting context)
+    if e.self:IsCompanion() then return end
+    if e.self:IsPet() then return end
+
+    local killed_name = e.self:GetCleanName()
+    if not killed_name or killed_name == "" then return end
+
+    -- Check if this was a named NPC (first letter uppercase and not "a "/"an " prefix)
+    local is_named = not (killed_name:sub(1, 2) == "a " or killed_name:sub(1, 3) == "an ")
+
+    -- Update all companions currently in the zone
+    local clients = eq.get_entity_list():GetClientList()
+    if not clients then return end
+
+    for client in clients.entries do
+        if client and client.valid then
+            local group = client:GetGroup()
+            if group and group.valid then
+                for i = 0, 5 do
+                    local member = group:GetMember(i)
+                    if member and member.valid then
+                        local ok_comp, is_comp = pcall(function() return member:IsCompanion() end)
+                        if ok_comp and is_comp then
+                            -- Update recent kills list (last 5, comma-separated)
+                            local kills_raw = member:GetEntityVariable("comp_recent_kills")
+                            local kills = {}
+                            if kills_raw and kills_raw ~= "" then
+                                for name in kills_raw:gmatch("[^,]+") do
+                                    kills[#kills + 1] = name
+                                end
+                            end
+                            kills[#kills + 1] = killed_name
+                            -- Keep only last 5
+                            if #kills > 5 then
+                                local trimmed = {}
+                                for i = #kills - 4, #kills do
+                                    trimmed[#trimmed + 1] = kills[i]
+                                end
+                                kills = trimmed
+                            end
+                            member:SetEntityVariable("comp_recent_kills", table.concat(kills, ","))
+
+                            -- Flag named kills for commentary trigger
+                            if is_named then
+                                member:SetEntityVariable("comp_named_kill", "1")
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
 end

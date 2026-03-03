@@ -2,6 +2,15 @@ from pydantic import BaseModel
 from typing import Optional
 
 
+class GroupMember(BaseModel):
+    """A member of the player's group, used in companion context."""
+    name: str = ""
+    race: str = ""
+    class_id: int = 0
+    level: int = 0
+    is_companion: bool = False
+
+
 class ChatRequest(BaseModel):
     npc_type_id: int
     npc_name: str
@@ -26,6 +35,33 @@ class ChatRequest(BaseModel):
     npc_is_merchant: bool = False  # True if NPC class == 41 (Merchant)
     quest_hints: list[str] | None = None     # Tier 2: hint sentences for quest guidance
     quest_state: str | None = None           # Tier 2: current quest progress descriptor
+
+    # --- Companion context fields ---
+    # Present when the NPC is an active companion (is_companion=true).
+    # All optional with defaults so non-companion requests are unaffected.
+    is_companion: bool = False
+    companion_type: int | None = None         # 0=loyal, 1=mercenary
+    companion_stance: int | None = None       # 0=passive, 1=balanced, 2=aggressive
+    companion_name: str | None = None
+    time_active_seconds: int | None = None
+    time_active_description: str | None = None  # "a few hours", "several days", etc.
+    evolution_tier: int | None = None         # 0=early, 1=mid, 2=late
+    recruited_zone_short: str | None = None
+    recruited_zone_long: str | None = None
+    original_role: str | None = None          # "guard", "merchant", etc.
+    zone_type: str | None = None              # "outdoor", "dungeon", "city", "indoor"
+    time_of_day: str | None = None            # "dawn", "day", "dusk", "night", "fixed_lighting"
+    is_luclin_fixed_light: bool = False
+    in_combat: bool = False
+    hp_percent: int | None = None
+    recently_damaged: bool = False
+    group_members: list[GroupMember] | None = None
+    group_size: int | None = None
+    recent_kills: str | None = None           # Comma-separated NPC names
+    race_culture_id: int | None = None
+    type_framing: str | None = None           # Full companion/mercenary framing text from Lua
+    evolution_context: str | None = None      # Identity evolution text from Lua
+    unprompted: bool = False                   # True for unprompted companion commentary
 
 
 class ChatResponse(BaseModel):

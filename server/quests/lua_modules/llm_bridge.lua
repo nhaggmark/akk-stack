@@ -119,11 +119,13 @@ end
 
 -- Build the NPC context table to send to the sidecar.
 -- Gathers faction data, NPC stats, player stats, and zone info.
+-- When the NPC is a companion, merges in companion-specific context fields
+-- from companion_context.lua (situational awareness, group composition, etc.).
 function llm_bridge.build_context(e)
     local faction_level = e.other:GetFaction(e.self)
     local faction_data = faction_map[faction_level] or faction_map[5] -- default: indifferent
 
-    return {
+    local context = {
         npc_type_id = e.self:GetNPCTypeID(),
         npc_name = e.self:GetCleanName(),
         npc_race = e.self:GetRace(),
@@ -145,6 +147,29 @@ function llm_bridge.build_context(e)
         faction_tone = faction_data.tone,
         faction_instruction = faction_data.instruction,
     }
+
+    -- Companion context enrichment: add situational and identity fields
+    -- when the NPC is an active companion. The sidecar uses is_companion=true
+    -- to switch from standard NPC system prompt to companion framing.
+    if e.self:IsCompanion() then
+        local ok, comp_ctx_lib = pcall(require, "companion_context")
+        if not ok then
+            eq.log(87, "llm_bridge: companion_context require failed: " .. tostring(comp_ctx_lib))
+        elseif comp_ctx_lib then
+            local ok2, companion_fields = pcall(function()
+                return comp_ctx_lib.build(e.self, e.other)
+            end)
+            if not ok2 then
+                eq.log(87, "llm_bridge: companion_context.build failed: " .. tostring(companion_fields))
+            elseif companion_fields then
+                for k, v in pairs(companion_fields) do
+                    context[k] = v
+                end
+            end
+        end
+    end
+
+    return context
 end
 
 -- Build context for Tier 2 (scripted) NPCs with quest hints.
@@ -190,6 +215,31 @@ function llm_bridge.generate_response(context, message)
         quest_hints         = context.quest_hints or json.null,
         quest_state         = context.quest_state or json.null,
         message             = message,
+
+        -- Companion context fields (present only when is_companion=true)
+        is_companion             = context.is_companion or false,
+        companion_type           = context.companion_type or json.null,
+        companion_stance         = context.companion_stance or json.null,
+        companion_name           = context.companion_name or json.null,
+        time_active_seconds      = context.time_active_seconds or json.null,
+        time_active_description  = context.time_active_description or json.null,
+        evolution_tier           = context.evolution_tier or json.null,
+        recruited_zone_short     = context.recruited_zone_short or json.null,
+        recruited_zone_long      = context.recruited_zone_long or json.null,
+        original_role            = context.original_role or json.null,
+        zone_type                = context.zone_type or json.null,
+        time_of_day              = context.time_of_day or json.null,
+        is_luclin_fixed_light    = context.is_luclin_fixed_light or false,
+        in_combat                = context.in_combat or false,
+        hp_percent               = context.hp_percent or json.null,
+        recently_damaged         = context.recently_damaged or false,
+        group_members            = context.group_members or json.null,
+        group_size               = context.group_size or json.null,
+        recent_kills             = context.recent_kills or json.null,
+        race_culture_id          = context.race_culture_id or json.null,
+        type_framing             = context.type_framing or json.null,
+        evolution_context        = context.evolution_context or json.null,
+        unprompted               = context.unprompted or false,
     }
 
     local json_body = json.encode(request)
