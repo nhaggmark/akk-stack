@@ -561,6 +561,9 @@ function companion.cmd_status(npc, client, args)
                        "  Class: " .. npc:GetClassName())
     client:Message(15, "  HP: " .. npc:GetHP() .. "/" .. npc:GetMaxHP() ..
                        "  Mana: " .. npc:GetMana() .. "/" .. npc:GetMaxMana())
+    local current_xp    = npc:GetCompanionXP()
+    local next_level_xp = npc:GetXPForNextLevel()
+    client:Message(15, "  XP: " .. current_xp .. " / " .. next_level_xp)
     client:Message(15, "  Stance: " ..
                        (stance_names[npc:GetStance()] or "Unknown") ..
                        "  Mode: " .. mode)
