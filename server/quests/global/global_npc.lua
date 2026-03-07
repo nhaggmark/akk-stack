@@ -113,18 +113,29 @@ local COMPANION_SLOT_NAMES = {
     [20] = "waist",    [22] = "ammo",
 }
 
--- Determine the first equipment slot valid for this item based on its Slots bitmask.
+-- Determine the best equipment slot for this item based on its Slots bitmask.
+-- Prefers empty slots over occupied ones for multi-slot items (rings, wrists).
+-- Pass 1: return the first matching slot that is currently empty.
+-- Pass 2: if all matching slots are occupied, return the first matching slot (will displace).
 -- Returns slot_id (0-22) or nil if no valid equipment slot is found.
-local function companion_find_slot(slots_bitmask)
+local function companion_find_slot(companion, slots_bitmask)
+    local first_match = nil
     for slot_id = 0, 22 do
         if slot_id ~= 21 then  -- skip PowerSource
             local bit_set = math.floor(slots_bitmask / (2 ^ slot_id)) % 2
             if bit_set == 1 and COMPANION_SLOT_NAMES[slot_id] then
-                return slot_id
+                if not first_match then
+                    first_match = slot_id
+                end
+                -- Prefer this slot if it is empty
+                if companion:GetEquipment(slot_id) == 0 then
+                    return slot_id
+                end
             end
         end
     end
-    return nil
+    -- No empty slot found — fall back to the first matching slot (will displace)
+    return first_match
 end
 
 -- Trade handler: equip items traded to a companion by their owner.
@@ -152,17 +163,25 @@ function event_trade(e)
     end
 
     -- Return any money (companions cannot hold coins)
+    local had_money = false
     if e.trade.platinum and e.trade.platinum > 0 then
         e.other:AddMoneyToPP(0, 0, 0, e.trade.platinum, true)
+        had_money = true
     end
     if e.trade.gold and e.trade.gold > 0 then
         e.other:AddMoneyToPP(0, 0, e.trade.gold, 0, true)
+        had_money = true
     end
     if e.trade.silver and e.trade.silver > 0 then
         e.other:AddMoneyToPP(0, e.trade.silver, 0, 0, true)
+        had_money = true
     end
     if e.trade.copper and e.trade.copper > 0 then
         e.other:AddMoneyToPP(e.trade.copper, 0, 0, 0, true)
+        had_money = true
+    end
+    if had_money then
+        e.other:Message(15, e.self:GetCleanName() .. " has no use for money.")
     end
 
     -- Equip each traded item
@@ -174,7 +193,7 @@ function event_trade(e)
             if item_id and item_id ~= 0 then
                 local item_data = inst:GetItem()
                 local slots_bitmask = item_data and item_data:Slots() or 0
-                local slot_id = companion_find_slot(slots_bitmask)
+                local slot_id = companion_find_slot(e.self, slots_bitmask)
 
                 if slot_id then
                     local slot_name = COMPANION_SLOT_NAMES[slot_id]
