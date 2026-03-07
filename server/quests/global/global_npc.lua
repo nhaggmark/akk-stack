@@ -65,7 +65,35 @@ function event_say(e)
     end
 
     if response then
-        e.self:Say(response)
+        local channel = e.self:GetEntityVariable("gsay_response_channel")
+        if channel == "group" then
+            -- Clear immediately so a failed LLM call does not leave stale state
+            e.self:SetEntityVariable("gsay_response_channel", "")
+            -- Check for stagger delay (set by C++ on companions 2..N in @all)
+            local stagger = e.self:GetEntityVariable("gsay_stagger_ms")
+            if stagger ~= "" then
+                e.self:SetEntityVariable("gsay_stagger_ms", "")
+                local delay_ms = tonumber(stagger) or 0
+                if delay_ms > 0 then
+                    -- Defer delivery via timer; event_timer handles group:GroupMessage
+                    e.self:SetEntityVariable("gsay_pending_response", response)
+                    eq.set_timer("gsay_deliver_" .. e.self:GetID(), delay_ms)
+                    if faction_data.max_responses then
+                        llm_bridge.set_hostile_cooldown(e)
+                    end
+                    return
+                end
+            end
+            -- Immediate group chat delivery
+            local group = e.other:GetGroup()
+            if group and group.valid then
+                group:GroupMessage(e.self, response)
+            else
+                e.self:Say(response)
+            end
+        else
+            e.self:Say(response)
+        end
         -- Threatening NPCs (8): set cooldown after their single warning
         if faction_data.max_responses then
             llm_bridge.set_hostile_cooldown(e)
@@ -225,6 +253,26 @@ end
 -- Timer handler for companion unprompted commentary.
 -- Fires every companion_commentary_min_interval_s for each companion entity.
 function event_timer(e)
+    -- gsay_deliver_<entity_id>: deferred group chat delivery for staggered @all LLM responses
+    if e.timer and e.timer:sub(1, 13) == "gsay_deliver_" then
+        eq.stop_timer(e.timer)
+        local pending = e.self:GetEntityVariable("gsay_pending_response")
+        if pending and pending ~= "" then
+            e.self:SetEntityVariable("gsay_pending_response", "")
+            local owner_id = e.self:GetOwnerCharacterID()
+            local owner = owner_id ~= 0 and eq.get_entity_list():GetClientByCharID(owner_id) or nil
+            if owner and owner.valid then
+                local group = owner:GetGroup()
+                if group and group.valid then
+                    group:GroupMessage(e.self, pending)
+                else
+                    e.self:Say(pending)
+                end
+            end
+        end
+        return
+    end
+
     -- Companion commentary timers are named "comp_commentary_<entity_id>"
     if e.timer and e.timer:sub(1, 16) == "comp_commentary_" and e.self:IsCompanion() then
         local ok, companion_commentary = pcall(require, "companion_commentary")
