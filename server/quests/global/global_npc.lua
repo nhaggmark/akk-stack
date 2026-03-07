@@ -196,6 +196,20 @@ function event_trade(e)
                 local slot_id = companion_find_slot(e.self, slots_bitmask)
 
                 if slot_id then
+                    -- Class/race restriction check (gated on server rules)
+                    local enforce_class = eq.get_rule("Companions:EnforceClassRestrictions")
+                    local enforce_race  = eq.get_rule("Companions:EnforceRaceRestrictions")
+                    if (enforce_class or enforce_race) and item_data then
+                        local comp_race  = e.self:GetRace()
+                        local comp_class = e.self:GetClass()
+                        if not item_data:IsEquipable(comp_race, comp_class) then
+                            e.other:Message(15, e.self:GetCleanName() ..
+                                " cannot use that item (class/race restricted).")
+                            e.other:SummonItem(item_id)
+                            goto continue
+                        end
+                    end
+
                     local slot_name = COMPANION_SLOT_NAMES[slot_id]
                     -- Return any item already in this slot before overwriting it
                     e.self:GiveSlot(e.other, slot_name)
@@ -215,6 +229,7 @@ function event_trade(e)
                 end
             end
         end
+        ::continue::
     end
 
     if equipped_count > 0 then
