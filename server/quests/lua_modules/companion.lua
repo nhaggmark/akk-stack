@@ -446,6 +446,7 @@ end
 -- Stance: set companion to passive (disengage, follow owner)
 function companion.cmd_passive(npc, client, args)
     npc:SetStance(0)
+    npc:WipeHateList()
     npc:Say("I will stand down.")
 end
 
