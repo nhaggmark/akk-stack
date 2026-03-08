@@ -191,45 +191,69 @@ function event_trade(e)
         if inst and inst.valid then
             local item_id = inst:GetID()
             if item_id and item_id ~= 0 then
-                local item_data = inst:GetItem()
-                local slots_bitmask = item_data and item_data:Slots() or 0
-                local slot_id = companion_find_slot(e.self, slots_bitmask)
+                -- Wrap per-item processing in pcall so any unexpected Lua error
+                -- returns the item to the player instead of losing it forever.
+                -- (After event_trade returns, C++ unconditionally safe_delete's all
+                -- trade slot instances — if we haven't SummonItem'd a rejected item
+                -- by then, it's gone.)
+                local item_equipped = false
+                local ok, err = pcall(function()
+                    local item_data = inst:GetItem()
+                    local slots_bitmask = item_data and item_data:Slots() or 0
+                    local slot_id = companion_find_slot(e.self, slots_bitmask)
 
-                if slot_id then
-                    -- Class/race restriction check (gated on server rules)
-                    local enforce_class = eq.get_rule("Companions:EnforceClassRestrictions")
-                    local enforce_race  = eq.get_rule("Companions:EnforceRaceRestrictions")
-                    if (enforce_class or enforce_race) and item_data then
-                        local comp_race  = e.self:GetRace()
-                        local comp_class = e.self:GetClass()
-                        if not item_data:IsEquipable(comp_race, comp_class) then
-                            e.other:Message(15, e.self:GetCleanName() ..
-                                " cannot use that item (class/race restricted).")
-                            e.other:SummonItem(item_id)
-                            goto continue
+                    if slot_id then
+                        -- Fix: compare rule string to "true" — eq.get_rule() returns
+                        -- a string like "true"/"false", not a boolean. In Lua, the
+                        -- string "false" is truthy, so a bare truthiness check would
+                        -- always enable restrictions regardless of the rule value.
+                        local enforce_class = eq.get_rule("Companions:EnforceClassRestrictions") == "true"
+                        local enforce_race  = eq.get_rule("Companions:EnforceRaceRestrictions") == "true"
+                        if (enforce_class or enforce_race) and inst then
+                            local comp_race  = e.self:GetRace()
+                            local comp_class = e.self:GetClass()
+                            -- Fix: use inst:IsEquipable() — IsEquipable lives on
+                            -- Lua_ItemInst, not Lua_Item. Calling it on item_data
+                            -- (a Lua_Item) would call nil and crash the handler.
+                            if not inst:IsEquipable(comp_race, comp_class) then
+                                e.other:Message(15, e.self:GetCleanName() ..
+                                    " cannot use that item (class/race restricted).")
+                                e.other:SummonItem(item_id)
+                                return  -- early return replaces goto continue
+                            end
                         end
-                    end
 
-                    local slot_name = COMPANION_SLOT_NAMES[slot_id]
-                    -- Return any item already in this slot before overwriting it
-                    e.self:GiveSlot(e.other, slot_name)
-                    -- Equip the new item
-                    local ok = e.self:GiveItem(item_id, slot_id)
-                    if ok then
-                        equipped_count = equipped_count + 1
+                        local slot_name = COMPANION_SLOT_NAMES[slot_id]
+                        -- Return any item already in this slot before overwriting it
+                        e.self:GiveSlot(e.other, slot_name)
+                        -- Equip the new item
+                        local give_ok = e.self:GiveItem(item_id, slot_id)
+                        if give_ok then
+                            item_equipped = true
+                        else
+                            -- GiveItem rejected — return item to player
+                            e.other:SummonItem(item_id)
+                        end
                     else
-                        -- GiveItem rejected — return item to player
+                        -- No valid equipment slot for this item
+                        e.other:Message(15, e.self:GetCleanName() ..
+                            " cannot equip that item.")
                         e.other:SummonItem(item_id)
                     end
-                else
-                    -- No valid equipment slot for this item
-                    e.other:Message(15, e.self:GetCleanName() ..
-                        " cannot equip that item.")
+                end)
+
+                if not ok then
+                    -- Safety net: return item to player on any unexpected Lua error.
+                    -- Log the error so it is visible to the GM/admin.
                     e.other:SummonItem(item_id)
+                    e.other:Message(15, "[Error] Could not process item for " ..
+                        e.self:GetCleanName() .. ". Item returned. (" ..
+                        tostring(err) .. ")")
+                elseif item_equipped then
+                    equipped_count = equipped_count + 1
                 end
             end
         end
-        ::continue::
     end
 
     if equipped_count > 0 then
