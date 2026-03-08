@@ -102,6 +102,27 @@ function event_say(e)
     -- Sidecar unavailable: silent fallthrough (NPC stays quiet, no error)
 end
 
+-- NPC model races that visually correspond to player races.
+-- These NPCs use non-player race IDs in the database but look like (and behave as)
+-- player races. GetPlayerRaceBit() returns 0 for all of them, which causes
+-- IsEquipable() to reject ALL items regardless of the item's race flags.
+-- Mapping these to their player race equivalents restores correct restriction checks.
+-- For NPC races not in this table with raw_race > 16 (non-player races like skeletons,
+-- dragons, etc.), the race check is bypassed entirely — class check still applies.
+local NPC_RACE_TO_PLAYER_RACE = {
+    [44]  = 1,   -- FreeportGuard    → Human
+    [55]  = 1,   -- HumanBeggar      → Human
+    [67]  = 1,   -- HighpassCitizen  → Human
+    [71]  = 1,   -- QeynosCitizen    → Human
+    [77]  = 6,   -- NeriakCitizen    → Dark Elf
+    [78]  = 3,   -- EruditeCitizen   → Erudite
+    [81]  = 11,  -- RivervaleCitizen → Halfling
+    [90]  = 2,   -- HalasCitizen     → Barbarian
+    [92]  = 9,   -- GrobbCitizen     → Troll
+    [93]  = 10,  -- OggokCitizen     → Ogre
+    [94]  = 8,   -- KaladimCitizen   → Dwarf
+}
+
 -- Slot integer -> name string for GiveSlot (must match SlotNameToSlotID in companion.cpp).
 -- PowerSource (21) is intentionally omitted — companions do not use it.
 local COMPANION_SLOT_NAMES = {
@@ -113,18 +134,29 @@ local COMPANION_SLOT_NAMES = {
     [20] = "waist",    [22] = "ammo",
 }
 
--- Determine the first equipment slot valid for this item based on its Slots bitmask.
+-- Determine the best equipment slot for this item based on its Slots bitmask.
+-- Prefers empty slots over occupied ones for multi-slot items (rings, wrists).
+-- Pass 1: return the first matching slot that is currently empty.
+-- Pass 2: if all matching slots are occupied, return the first matching slot (will displace).
 -- Returns slot_id (0-22) or nil if no valid equipment slot is found.
-local function companion_find_slot(slots_bitmask)
+local function companion_find_slot(companion, slots_bitmask)
+    local first_match = nil
     for slot_id = 0, 22 do
         if slot_id ~= 21 then  -- skip PowerSource
             local bit_set = math.floor(slots_bitmask / (2 ^ slot_id)) % 2
             if bit_set == 1 and COMPANION_SLOT_NAMES[slot_id] then
-                return slot_id
+                if not first_match then
+                    first_match = slot_id
+                end
+                -- Prefer this slot if it is empty
+                if companion:GetEquipment(slot_id) == 0 then
+                    return slot_id
+                end
             end
         end
     end
-    return nil
+    -- No empty slot found — fall back to the first matching slot (will displace)
+    return first_match
 end
 
 -- Trade handler: equip items traded to a companion by their owner.
@@ -152,17 +184,25 @@ function event_trade(e)
     end
 
     -- Return any money (companions cannot hold coins)
+    local had_money = false
     if e.trade.platinum and e.trade.platinum > 0 then
         e.other:AddMoneyToPP(0, 0, 0, e.trade.platinum, true)
+        had_money = true
     end
     if e.trade.gold and e.trade.gold > 0 then
         e.other:AddMoneyToPP(0, 0, e.trade.gold, 0, true)
+        had_money = true
     end
     if e.trade.silver and e.trade.silver > 0 then
         e.other:AddMoneyToPP(0, e.trade.silver, 0, 0, true)
+        had_money = true
     end
     if e.trade.copper and e.trade.copper > 0 then
         e.other:AddMoneyToPP(e.trade.copper, 0, 0, 0, true)
+        had_money = true
+    end
+    if had_money then
+        e.other:Message(15, e.self:GetCleanName() .. " has no use for money.")
     end
 
     -- Equip each traded item
@@ -172,27 +212,84 @@ function event_trade(e)
         if inst and inst.valid then
             local item_id = inst:GetID()
             if item_id and item_id ~= 0 then
-                local item_data = inst:GetItem()
-                local slots_bitmask = item_data and item_data:Slots() or 0
-                local slot_id = companion_find_slot(slots_bitmask)
+                -- Wrap per-item processing in pcall so any unexpected Lua error
+                -- returns the item to the player instead of losing it forever.
+                -- (After event_trade returns, C++ unconditionally safe_delete's all
+                -- trade slot instances — if we haven't SummonItem'd a rejected item
+                -- by then, it's gone.)
+                local item_equipped = false
+                local ok, err = pcall(function()
+                    local item_data = inst:GetItem()
+                    local slots_bitmask = item_data and item_data:Slots() or 0
+                    local slot_id = companion_find_slot(e.self, slots_bitmask)
 
-                if slot_id then
-                    local slot_name = COMPANION_SLOT_NAMES[slot_id]
-                    -- Return any item already in this slot before overwriting it
-                    e.self:GiveSlot(e.other, slot_name)
-                    -- Equip the new item
-                    local ok = e.self:GiveItem(item_id, slot_id)
-                    if ok then
-                        equipped_count = equipped_count + 1
+                    if slot_id then
+                        -- Fix: compare rule string to "true" — eq.get_rule() returns
+                        -- a string like "true"/"false", not a boolean. In Lua, the
+                        -- string "false" is truthy, so a bare truthiness check would
+                        -- always enable restrictions regardless of the rule value.
+                        local enforce_class = eq.get_rule("Companions:EnforceClassRestrictions") == "true"
+                        local enforce_race  = eq.get_rule("Companions:EnforceRaceRestrictions") == "true"
+                        if (enforce_class or enforce_race) and inst then
+                            local raw_race   = e.self:GetRace()
+                            local comp_class = e.self:GetClass()
+                            -- Map NPC model race to its player race equivalent so
+                            -- IsEquipable() receives a valid race ID. Without this,
+                            -- citizen/guard NPCs (race 44, 67, 71, etc.) always fail
+                            -- the race check because GetPlayerRaceBit() returns 0 for
+                            -- any race ID that isn't a player race (1-12, 128, 130, 330, 522).
+                            local mapped_race = NPC_RACE_TO_PLAYER_RACE[raw_race]
+                            -- For genuinely non-player races (skeletons, dragons, etc.)
+                            -- that have no player-race equivalent, bypass the race portion
+                            -- of the check by using race 1 (Human), which passes all
+                            -- race-flag values. Class restrictions still apply normally.
+                            local check_race
+                            if mapped_race then
+                                check_race = mapped_race
+                            elseif raw_race > 16 then
+                                check_race = 1  -- bypass race check for unmappable NPC races
+                            else
+                                check_race = raw_race  -- player race IDs 1-16 pass through unchanged
+                            end
+                            -- Fix: use inst:IsEquipable() — IsEquipable lives on
+                            -- Lua_ItemInst, not Lua_Item. Calling it on item_data
+                            -- (a Lua_Item) would call nil and crash the handler.
+                            if not inst:IsEquipable(check_race, comp_class) then
+                                e.other:Message(15, e.self:GetCleanName() ..
+                                    " cannot use that item (class/race restricted).")
+                                e.other:SummonItem(item_id)
+                                return  -- early return replaces goto continue
+                            end
+                        end
+
+                        local slot_name = COMPANION_SLOT_NAMES[slot_id]
+                        -- Return any item already in this slot before overwriting it
+                        e.self:GiveSlot(e.other, slot_name)
+                        -- Equip the new item
+                        local give_ok = e.self:GiveItem(item_id, slot_id)
+                        if give_ok then
+                            item_equipped = true
+                        else
+                            -- GiveItem rejected — return item to player
+                            e.other:SummonItem(item_id)
+                        end
                     else
-                        -- GiveItem rejected — return item to player
+                        -- No valid equipment slot for this item
+                        e.other:Message(15, e.self:GetCleanName() ..
+                            " cannot equip that item.")
                         e.other:SummonItem(item_id)
                     end
-                else
-                    -- No valid equipment slot for this item
-                    e.other:Message(15, e.self:GetCleanName() ..
-                        " cannot equip that item.")
+                end)
+
+                if not ok then
+                    -- Safety net: return item to player on any unexpected Lua error.
+                    -- Log the error so it is visible to the GM/admin.
                     e.other:SummonItem(item_id)
+                    e.other:Message(15, "[Error] Could not process item for " ..
+                        e.self:GetCleanName() .. ". Item returned. (" ..
+                        tostring(err) .. ")")
+                elseif item_equipped then
+                    equipped_count = equipped_count + 1
                 end
             end
         end
