@@ -102,6 +102,27 @@ function event_say(e)
     -- Sidecar unavailable: silent fallthrough (NPC stays quiet, no error)
 end
 
+-- NPC model races that visually correspond to player races.
+-- These NPCs use non-player race IDs in the database but look like (and behave as)
+-- player races. GetPlayerRaceBit() returns 0 for all of them, which causes
+-- IsEquipable() to reject ALL items regardless of the item's race flags.
+-- Mapping these to their player race equivalents restores correct restriction checks.
+-- For NPC races not in this table with raw_race > 16 (non-player races like skeletons,
+-- dragons, etc.), the race check is bypassed entirely — class check still applies.
+local NPC_RACE_TO_PLAYER_RACE = {
+    [44]  = 1,   -- FreeportGuard    → Human
+    [55]  = 1,   -- HumanBeggar      → Human
+    [67]  = 1,   -- HighpassCitizen  → Human
+    [71]  = 1,   -- QeynosCitizen    → Human
+    [77]  = 6,   -- NeriakCitizen    → Dark Elf
+    [78]  = 3,   -- EruditeCitizen   → Erudite
+    [81]  = 11,  -- RivervaleCitizen → Halfling
+    [90]  = 2,   -- HalasCitizen     → Barbarian
+    [92]  = 9,   -- GrobbCitizen     → Troll
+    [93]  = 10,  -- OggokCitizen     → Ogre
+    [94]  = 8,   -- KaladimCitizen   → Dwarf
+}
+
 -- Slot integer -> name string for GiveSlot (must match SlotNameToSlotID in companion.cpp).
 -- PowerSource (21) is intentionally omitted — companions do not use it.
 local COMPANION_SLOT_NAMES = {
@@ -210,12 +231,30 @@ function event_trade(e)
                         local enforce_class = eq.get_rule("Companions:EnforceClassRestrictions") == "true"
                         local enforce_race  = eq.get_rule("Companions:EnforceRaceRestrictions") == "true"
                         if (enforce_class or enforce_race) and inst then
-                            local comp_race  = e.self:GetRace()
+                            local raw_race   = e.self:GetRace()
                             local comp_class = e.self:GetClass()
+                            -- Map NPC model race to its player race equivalent so
+                            -- IsEquipable() receives a valid race ID. Without this,
+                            -- citizen/guard NPCs (race 44, 67, 71, etc.) always fail
+                            -- the race check because GetPlayerRaceBit() returns 0 for
+                            -- any race ID that isn't a player race (1-12, 128, 130, 330, 522).
+                            local mapped_race = NPC_RACE_TO_PLAYER_RACE[raw_race]
+                            -- For genuinely non-player races (skeletons, dragons, etc.)
+                            -- that have no player-race equivalent, bypass the race portion
+                            -- of the check by using race 1 (Human), which passes all
+                            -- race-flag values. Class restrictions still apply normally.
+                            local check_race
+                            if mapped_race then
+                                check_race = mapped_race
+                            elseif raw_race > 16 then
+                                check_race = 1  -- bypass race check for unmappable NPC races
+                            else
+                                check_race = raw_race  -- player race IDs 1-16 pass through unchanged
+                            end
                             -- Fix: use inst:IsEquipable() — IsEquipable lives on
                             -- Lua_ItemInst, not Lua_Item. Calling it on item_data
                             -- (a Lua_Item) would call nil and crash the handler.
-                            if not inst:IsEquipable(comp_race, comp_class) then
+                            if not inst:IsEquipable(check_race, comp_class) then
                                 e.other:Message(15, e.self:GetCleanName() ..
                                     " cannot use that item (class/race restricted).")
                                 e.other:SummonItem(item_id)
