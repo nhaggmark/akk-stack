@@ -269,6 +269,15 @@ function event_trade(e)
                         local give_ok = e.self:GiveItem(item_id, slot_id)
                         if give_ok then
                             item_equipped = true
+                            -- Return excess stack to the player. Companions only need
+                            -- one instance of any stackable item (NPCs have infinite
+                            -- ammo), so giving back charges-1 prevents item loss.
+                            if inst:IsStackable() then
+                                local charges = inst:GetCharges()
+                                if charges and charges > 1 then
+                                    e.other:SummonItem(item_id, charges - 1)
+                                end
+                            end
                         else
                             -- GiveItem rejected — return item to player
                             e.other:SummonItem(item_id)
