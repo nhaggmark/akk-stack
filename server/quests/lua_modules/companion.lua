@@ -73,7 +73,21 @@ local ROLL_MAX = 95
 -- Re-recruitment bonus (applied when is_dismissed=1 record exists)
 local REREC_BONUS = 10
 
--- Command dispatch table: maps command names to handler function names and help categories
+-- Combat role display names (maps Companion::GetCombatRole() uint8 return to display string)
+-- Values mirror the CompanionCombatRole enum in companion.h:
+--   0=COMBAT_ROLE_MELEE_TANK, 1=COMBAT_ROLE_MELEE_DPS, 2=COMBAT_ROLE_ROGUE,
+--   3=COMBAT_ROLE_CASTER_DPS, 4=COMBAT_ROLE_HEALER
+local COMBAT_ROLE_NAMES = {
+    [0] = "Melee Tank",
+    [1] = "Melee DPS",
+    [2] = "Rogue",
+    [3] = "Caster DPS",
+    [4] = "Healer",
+}
+
+-- Command dispatch table: maps command names to handler function names and help categories.
+-- requires_owner = false marks read-only informational commands that any player may use on
+-- any companion they can target. Commands without this field default to owner-only.
 local COMMANDS = {
     passive    = { handler = "cmd_passive",    category = "stance" },
     balanced   = { handler = "cmd_balanced",   category = "stance" },
@@ -81,13 +95,14 @@ local COMMANDS = {
     follow     = { handler = "cmd_follow",     category = "movement" },
     guard      = { handler = "cmd_guard",      category = "movement" },
     recall     = { handler = "cmd_recall",     category = "movement" },
-    equipment  = { handler = "cmd_equipment",  category = "equipment" },
-    gear       = { handler = "cmd_equipment",  category = "equipment" },  -- alias for !equipment
+    equipment  = { handler = "cmd_equipment",  category = "equipment",   requires_owner = false },
+    gear       = { handler = "cmd_equipment",  category = "equipment",   requires_owner = false },  -- alias for !equipment
     equip      = { handler = "cmd_equip",      category = "equipment" },
     unequip    = { handler = "cmd_unequip",    category = "equipment" },
     unequipall = { handler = "cmd_unequipall", category = "equipment" },  -- alias for !unequip all
-    status     = { handler = "cmd_status",     category = "information" },
-    help       = { handler = "cmd_help",       category = "information" },
+    stats      = { handler = "cmd_stats",      category = "information", requires_owner = false },
+    status     = { handler = "cmd_status",     category = "information", requires_owner = false },
+    help       = { handler = "cmd_help",       category = "information", requires_owner = false },
     target     = { handler = "cmd_target",     category = "combat" },
     assist     = { handler = "cmd_assist",     category = "combat" },
     dismiss    = { handler = "cmd_dismiss",    category = "control" },
@@ -115,16 +130,13 @@ end
 
 -- Main entry point for !-prefixed commands from global_npc.lua.
 -- Called when e.self:IsCompanion() and message starts with "!".
+-- Access control: read-only commands (requires_owner = false) are available to any
+-- player targeting any companion. Owner-only commands check GetOwnerCharacterID() first.
 function companion.dispatch_prefix_command(npc, client, message)
-    -- Ownership check: only the owner can command their companion
-    if npc:GetOwnerCharacterID() ~= client:CharacterID() then
-        client:Message(15, "That is not your companion.")
-        return
-    end
-
     -- Strip prefix and leading whitespace, parse command + args
     local body = message:sub(2):gsub("^%s+", "")
     if body == "" then
+        -- Empty "!" with no command: show help (read-only, no ownership needed)
         companion.cmd_help(npc, client, "")
         return
     end
@@ -133,6 +145,16 @@ function companion.dispatch_prefix_command(npc, client, message)
     cmd = cmd:lower()
 
     local entry = COMMANDS[cmd]
+
+    -- Ownership check: skip for read-only commands (requires_owner = false),
+    -- enforce for all owner-only commands and unknown commands.
+    if not (entry and entry.requires_owner == false) then
+        if npc:GetOwnerCharacterID() ~= client:CharacterID() then
+            client:Message(15, "That is not your companion.")
+            return
+        end
+    end
+
     if entry then
         companion[entry.handler](npc, client, args or "")
     else
@@ -574,6 +596,40 @@ function companion.cmd_status(npc, client, args)
                        (type_names[npc:GetCompanionType()] or "Unknown"))
 end
 
+-- Information: show detailed combat stats for any targeted companion (read-only, no ownership required)
+-- Requires c-expert Task 1: GetMinDMG(), GetMaxDMG(), GetCombatRole() bindings on Lua_Companion.
+-- All other stat methods are available via Lua_Mob inheritance (GetSTR, GetAC, GetMR, etc.).
+function companion.cmd_stats(npc, client, args)
+    local role_id   = npc:GetCombatRole()
+    local role_name = COMBAT_ROLE_NAMES[role_id] or "Unknown"
+
+    client:Message(15, "=== " .. npc:GetCleanName() .. " ===")
+    client:Message(15, "Level " .. npc:GetLevel() ..
+                       " " .. npc:GetClassName() ..
+                       " (" .. role_name .. ")")
+    client:Message(15, "HP: " .. npc:GetHP() .. "/" .. npc:GetMaxHP() ..
+                       "  |  Mana: " .. npc:GetMana() .. "/" .. npc:GetMaxMana())
+    client:Message(15, "--- Attributes ---")
+    client:Message(15, "STR: " .. npc:GetSTR() ..
+                       "  STA: " .. npc:GetSTA() ..
+                       "  AGI: " .. npc:GetAGI() ..
+                       "  DEX: " .. npc:GetDEX())
+    client:Message(15, "INT: " .. npc:GetINT() ..
+                       "  WIS: " .. npc:GetWIS() ..
+                       "  CHA: " .. npc:GetCHA())
+    client:Message(15, "--- Combat ---")
+    client:Message(15, "AC: " .. npc:GetAC() ..
+                       "  ATK: " .. npc:GetATK())
+    client:Message(15, "Damage: " .. npc:GetMinDMG() ..
+                       " - " .. npc:GetMaxDMG())
+    client:Message(15, "--- Resistances ---")
+    client:Message(15, "MR: " .. npc:GetMR() ..
+                       "  FR: " .. npc:GetFR() ..
+                       "  CR: " .. npc:GetCR() ..
+                       "  PR: " .. npc:GetPR() ..
+                       "  DR: " .. npc:GetDR())
+end
+
 -- Information: display help, optionally filtered by category topic
 function companion.cmd_help(npc, client, args)
     local topic = args:lower():gsub("^%s+", ""):gsub("%s+$", "")
@@ -594,6 +650,7 @@ function companion.cmd_help(npc, client, args)
         client:Message(15, "  !unequip all   - Return all equipped items")
         client:Message(15, "  !equip         - How to give items")
         client:Message(15, "Information:")
+        client:Message(15, "  !stats         - Show detailed combat stats")
         client:Message(15, "  !status        - Show companion overview")
         client:Message(15, "  !help          - This command list")
         client:Message(15, "  !help <topic>  - Details for a category")
@@ -648,7 +705,10 @@ function companion.cmd_help(npc, client, args)
 
     elseif topic == "information" then
         client:Message(15, "=== Information Commands ===")
-        client:Message(15, "  !status       - Show companion stats, stance, mode.")
+        client:Message(15, "  !stats        - Show detailed combat stats.")
+        client:Message(15, "                  Available to any player targeting any")
+        client:Message(15, "                  companion (not owner-restricted).")
+        client:Message(15, "  !status       - Show companion overview: stance, XP, mode.")
         client:Message(15, "  !help         - Show all available commands.")
         client:Message(15, "  !help <topic> - Show details for a category.")
         client:Message(15, "                  Topics: stance, movement, equipment,")
