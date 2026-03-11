@@ -263,8 +263,17 @@ function event_trade(e)
                         end
 
                         local slot_name = COMPANION_SLOT_NAMES[slot_id]
-                        -- Return any item already in this slot before overwriting it
-                        e.self:GiveSlot(e.other, slot_name)
+                        -- Return any item already in this slot before overwriting it.
+                        -- Pre-check: only call GiveSlot if the slot is actually occupied.
+                        -- This guards against double-dispatch (Candidate A in bug-018 plan):
+                        -- if both a local event_trade handler and this global handler fire
+                        -- for the same trade, the first pass empties the slot and the second
+                        -- pass must not return a phantom item. GiveSlot has its own internal
+                        -- guard (returns false on empty slot), but checking here prevents an
+                        -- unnecessary C++ call and makes the intent explicit.
+                        if e.self:GetEquipment(slot_id) ~= 0 then
+                            e.self:GiveSlot(e.other, slot_name)
+                        end
                         -- Equip the new item
                         local give_ok = e.self:GiveItem(item_id, slot_id)
                         if give_ok then
