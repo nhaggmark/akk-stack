@@ -487,7 +487,7 @@ end
 
 -- Stance: set companion to passive (disengage, follow owner)
 function companion.cmd_passive(npc, client, args)
-    npc:SetStance(0)
+    if npc.SetStance then npc:SetStance(0) end  -- nil-guard: SetStance is Companion-only; Lua_NPC cast drops it
     npc:WipeHateList()
     npc:Say("I will stand down.")
 end
@@ -495,8 +495,9 @@ end
 -- Stance: set companion to balanced (default combat behavior)
 -- Response splits by companion_type: loyal = relational, mercenary = neutral
 function companion.cmd_balanced(npc, client, args)
-    npc:SetStance(1)
-    if npc:GetCompanionType() == 0 then
+    if npc.SetStance then npc:SetStance(1) end  -- nil-guard: SetStance is Companion-only; Lua_NPC cast drops it
+    local companion_type = npc.GetCompanionType and npc:GetCompanionType() or 0  -- nil-guard: GetCompanionType is Companion-only; default 0 (loyal)
+    if companion_type == 0 then
         npc:Say("I will fight at your side.")
     else
         npc:Say("Understood.")
@@ -505,7 +506,7 @@ end
 
 -- Stance: set companion to aggressive (actively pursue enemies)
 function companion.cmd_aggressive(npc, client, args)
-    npc:SetStance(2)
+    if npc.SetStance then npc:SetStance(2) end  -- nil-guard: SetStance is Companion-only; Lua_NPC cast drops it
     npc:Say("Understood. I will fight aggressively.")
 end
 
@@ -515,14 +516,14 @@ function companion.cmd_follow(npc, client, args)
         companion_say(npc, client, npc:GetCleanName() .. " is dead and cannot follow.")
         return
     end
-    npc:SetGuardMode(false)
+    if npc.SetGuardMode then npc:SetGuardMode(false) end  -- nil-guard: SetGuardMode is Companion-only; Lua_NPC cast drops it
     companion_modes[npc:GetID()] = "follow"
     companion_say(npc, client, npc:GetCleanName() .. " will follow you.")
 end
 
 -- Movement: hold current position, stop following
 function companion.cmd_guard(npc, client, args)
-    npc:SetGuardMode(true)
+    if npc.SetGuardMode then npc:SetGuardMode(true) end  -- nil-guard: SetGuardMode is Companion-only; Lua_NPC cast drops it
     companion_modes[npc:GetID()] = "guard"
     npc:Say("I will hold here.")
 end
@@ -530,8 +531,9 @@ end
 -- Movement: teleport companion to player location (only if far enough away)
 function companion.cmd_recall(npc, client, args)
     local cooldown_s = tonumber(eq.get_rule("Companions:RecallCooldownS")) or 30
+    local companion_id = npc.GetCompanionID and npc:GetCompanionID() or 0  -- nil-guard: GetCompanionID is Companion-only; Lua_NPC cast drops it
     local cd_key = "companion_recall_cd_" ..
-                   npc:GetCompanionID() .. "_" .. client:CharacterID()
+                   companion_id .. "_" .. client:CharacterID()
 
     -- Cooldown check
     local on_cd = eq.get_data(cd_key)
@@ -638,17 +640,18 @@ function companion.cmd_status(npc, client, args)
     local mode = companion_modes[npc:GetID()] or "follow"
     mode = mode:sub(1, 1):upper() .. mode:sub(2)
 
-    -- Stance
-    local stance_str = stance_names[npc:GetStance()] or "Unknown"
+    -- Stance (nil-guard: GetStance is Companion-only; Lua_NPC cast drops it; default 1 = balanced)
+    local stance_str = stance_names[npc.GetStance and npc:GetStance() or 1] or "Unknown"
 
     -- XP
     local current_xp    = npc:GetCompanionXP()
     local next_level_xp = npc:GetXPForNextLevel()
 
     companion_say(npc, client, "=== " .. name .. " ===")
+    -- nil-guard: GetCompanionType is Companion-only; Lua_NPC cast drops it; default 0 (loyal)
     companion_say(npc, client, "  Level: " .. npc:GetLevel() ..
                                "  Class: " .. npc:GetClassName() ..
-                               "  Type: " .. (type_names[npc:GetCompanionType()] or "Unknown"))
+                               "  Type: " .. (type_names[npc.GetCompanionType and npc:GetCompanionType() or 0] or "Unknown"))
     companion_say(npc, client, "  " .. hp_str)
     companion_say(npc, client, "  " .. mana_str)
     companion_say(npc, client, "  XP: " .. current_xp .. " / " .. next_level_xp)
@@ -697,7 +700,7 @@ end
 -- Requires c-expert Task 1: GetMinDMG(), GetMaxDMG(), GetCombatRole() bindings on Lua_Companion.
 -- All other stat methods are available via Lua_Mob inheritance (GetSTR, GetAC, GetMR, etc.).
 function companion.cmd_stats(npc, client, args)
-    local role_id   = npc:GetCombatRole()
+    local role_id   = npc.GetCombatRole and npc:GetCombatRole() or 0  -- nil-guard: GetCombatRole is Companion-only; Lua_NPC cast drops it; default 0
     local role_name = COMBAT_ROLE_NAMES[role_id] or "Unknown"
 
     client:Message(15, "=== " .. npc:GetCleanName() .. " ===")
@@ -848,11 +851,15 @@ function companion.cmd_tome(npc, client, args)
         companion_say(npc, client, name .. " is already nearby.")
         return
     end
-    npc:RunTo(client:GetX(), client:GetY(), client:GetZ())
-    companion_say(npc, client, name .. " moves toward you.")
+    -- BUG-022: Use GMMove for instant repositioning. RunTo is overridden by the
+    -- follow-target AI on the next process tick, making it ineffective.
+    -- GMMove sets position directly; the follow AI then resumes formation normally.
+    -- This matches cmd_recall's approach (see above).
+    npc:GMMove(client:GetX(), client:GetY(), client:GetZ(), client:GetHeading())
+    companion_say(npc, client, name .. " moves to your side.")
 end
 
--- Movement: disengage and retreat to player (passive + RunTo + follow mode)
+-- Movement: disengage and retreat to player (passive + GMMove + follow mode)
 -- NOTE: hate list is intentionally NOT cleared (lore-correct; mobs continue pursuit)
 function companion.cmd_flee(npc, client, args)
     local name = npc:GetCleanName()
@@ -861,13 +868,16 @@ function companion.cmd_flee(npc, client, args)
         return
     end
     local was_in_combat = npc:IsEngaged()
-    local was_passive   = (npc:GetStance() == 0)
+    -- nil-guard: GetStance is Companion-only; Lua_NPC cast drops it; default 1 (balanced = not passive)
+    local was_passive   = ((npc.GetStance and npc:GetStance() or 1) == 0)
 
     -- Set passive and move to follow mode
-    npc:SetStance(0)
-    npc:SetGuardMode(false)
+    if npc.SetStance then npc:SetStance(0) end      -- nil-guard: SetStance is Companion-only; Lua_NPC cast drops it
+    if npc.SetGuardMode then npc:SetGuardMode(false) end  -- nil-guard: SetGuardMode is Companion-only; Lua_NPC cast drops it
     companion_modes[npc:GetID()] = "follow"
-    npc:RunTo(client:GetX(), client:GetY(), client:GetZ())
+    -- Use GMMove for instant repositioning. RunTo is overridden by the follow-target AI
+    -- on the next process tick, making it ineffective (same issue as cmd_tome / BUG-022).
+    npc:GMMove(client:GetX(), client:GetY(), client:GetZ(), client:GetHeading())
 
     if was_in_combat and not was_passive then
         companion_say(npc, client, name .. " disengages and retreats to you!")
@@ -886,7 +896,9 @@ function companion.cmd_target(npc, client, args)
         return
     end
     npc:SetTarget(player_target)
-    if npc:GetStance() ~= 0 then
+    -- nil-guard: GetStance is Companion-only; Lua_NPC cast drops it; default 1 (balanced = engage)
+    local stance = npc.GetStance and npc:GetStance() or 1
+    if stance ~= 0 then
         npc:AddToHateList(player_target, 1, 0, false, false, false)
     end
     npc:Say("I see your target.")
@@ -910,7 +922,9 @@ function companion.cmd_assist(npc, client, args)
     end
 
     -- Friendly/self target check
-    if player_target == npc then
+    -- BUG-023: luabind cannot compare Lua_Mob and Lua_NPC with __eq (cross-type).
+    -- Use GetID() identity check instead of object equality.
+    if player_target:GetID() == npc:GetID() then
         companion_say(npc, client, name .. " will not attack themselves.")
         return
     end
@@ -920,9 +934,11 @@ function companion.cmd_assist(npc, client, args)
     end
 
     -- Auto-switch passive -> balanced before engaging
+    -- nil-guard: GetStance/SetStance are Companion-only; Lua_NPC cast drops them (BUG-021)
     local switched_stance = false
-    if npc:GetStance() == 0 then
-        npc:SetStance(1)
+    local stance = npc.GetStance and npc:GetStance() or 1  -- default 1 (balanced) if method unavailable
+    if stance == 0 then
+        if npc.SetStance then npc:SetStance(1) end
         switched_stance = true
     end
 
