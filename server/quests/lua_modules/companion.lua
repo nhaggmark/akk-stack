@@ -922,7 +922,9 @@ function companion.cmd_assist(npc, client, args)
     end
 
     -- Friendly/self target check
-    if player_target == npc then
+    -- BUG-023: luabind cannot compare Lua_Mob and Lua_NPC with __eq (cross-type).
+    -- Use GetID() identity check instead of object equality.
+    if player_target:GetID() == npc:GetID() then
         companion_say(npc, client, name .. " will not attack themselves.")
         return
     end
