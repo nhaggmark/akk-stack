@@ -89,23 +89,29 @@ local COMBAT_ROLE_NAMES = {
 -- requires_owner = false marks read-only informational commands that any player may use on
 -- any companion they can target. Commands without this field default to owner-only.
 local COMMANDS = {
-    passive    = { handler = "cmd_passive",    category = "stance" },
-    balanced   = { handler = "cmd_balanced",   category = "stance" },
-    aggressive = { handler = "cmd_aggressive", category = "stance" },
-    follow     = { handler = "cmd_follow",     category = "movement" },
-    guard      = { handler = "cmd_guard",      category = "movement" },
-    recall     = { handler = "cmd_recall",     category = "movement" },
-    equipment  = { handler = "cmd_equipment",  category = "equipment",   requires_owner = false },
-    gear       = { handler = "cmd_equipment",  category = "equipment",   requires_owner = false },  -- alias for !equipment
-    equip      = { handler = "cmd_equip",      category = "equipment" },
-    unequip    = { handler = "cmd_unequip",    category = "equipment" },
-    unequipall = { handler = "cmd_unequipall", category = "equipment" },  -- alias for !unequip all
-    stats      = { handler = "cmd_stats",      category = "information", requires_owner = false },
-    status     = { handler = "cmd_status",     category = "information", requires_owner = false },
-    help       = { handler = "cmd_help",       category = "information", requires_owner = false },
-    target     = { handler = "cmd_target",     category = "combat" },
-    assist     = { handler = "cmd_assist",     category = "combat" },
-    dismiss    = { handler = "cmd_dismiss",    category = "control" },
+    passive          = { handler = "cmd_passive",          category = "stance" },
+    balanced         = { handler = "cmd_balanced",         category = "stance" },
+    aggressive       = { handler = "cmd_aggressive",       category = "stance" },
+    follow           = { handler = "cmd_follow",           category = "movement" },
+    guard            = { handler = "cmd_guard",            category = "movement" },
+    recall           = { handler = "cmd_recall",           category = "movement" },
+    tome             = { handler = "cmd_tome",             category = "movement" },
+    flee             = { handler = "cmd_flee",             category = "movement" },
+    equipment        = { handler = "cmd_equipment",        category = "equipment",   requires_owner = false },
+    gear             = { handler = "cmd_equipment",        category = "equipment",   requires_owner = false },  -- alias for !equipment
+    equip            = { handler = "cmd_equip",            category = "equipment" },
+    unequip          = { handler = "cmd_unequip",          category = "equipment" },
+    unequipall       = { handler = "cmd_unequipall",       category = "equipment" },  -- alias for !unequip all
+    equipmentupgrade = { handler = "cmd_equipmentupgrade", category = "equipment",   requires_owner = false },
+    equipmentmissing = { handler = "cmd_equipmentmissing", category = "equipment",   requires_owner = false },
+    stats            = { handler = "cmd_stats",            category = "information", requires_owner = false },
+    status           = { handler = "cmd_status",           category = "information", requires_owner = false },
+    help             = { handler = "cmd_help",             category = "information", requires_owner = false },
+    target           = { handler = "cmd_target",           category = "combat" },
+    assist           = { handler = "cmd_assist",           category = "combat" },
+    buffme           = { handler = "cmd_buffme",           category = "buffs" },
+    buffs            = { handler = "cmd_buffs",            category = "buffs" },
+    dismiss          = { handler = "cmd_dismiss",          category = "control" },
 }
 
 -- ============================================================================
@@ -467,6 +473,18 @@ end
 -- Command Handlers (! prefix system)
 -- ============================================================================
 
+-- Helper: send a message in group chat from the companion.
+-- Mirrors the non-stagger path in global_npc.lua:event_say().
+-- Falls back to npc:Say() if the owner has no group (should not happen in practice).
+local function companion_say(npc, client, msg)
+    local group = client:GetGroup()
+    if group and group.valid then
+        group:GroupMessage(npc, msg)
+    else
+        npc:Say(msg)
+    end
+end
+
 -- Stance: set companion to passive (disengage, follow owner)
 function companion.cmd_passive(npc, client, args)
     npc:SetStance(0)
@@ -493,9 +511,13 @@ end
 
 -- Movement: resume following owner at standard distance
 function companion.cmd_follow(npc, client, args)
+    if npc:GetHP() <= 0 then
+        companion_say(npc, client, npc:GetCleanName() .. " is dead and cannot follow.")
+        return
+    end
     npc:SetGuardMode(false)
     companion_modes[npc:GetID()] = "follow"
-    npc:Say("I will follow.")
+    companion_say(npc, client, npc:GetCleanName() .. " will follow you.")
 end
 
 -- Movement: hold current position, stop following
@@ -574,26 +596,101 @@ function companion.cmd_unequipall(npc, client, args)
     companion.cmd_unequip(npc, client, "all")
 end
 
--- Information: show companion stats overview
+-- Information: show companion status overview (group chat, enhanced with buffs/target/state)
 function companion.cmd_status(npc, client, args)
     local stance_names = { [0] = "Passive", [1] = "Balanced", [2] = "Aggressive" }
     local type_names   = { [0] = "Companion", [1] = "Mercenary" }
+    local name = npc:GetCleanName()
+
+    -- Dead check
+    if npc:GetHP() <= 0 then
+        companion_say(npc, client, "=== " .. name .. " [DEAD] ===")
+        companion_say(npc, client, "  Level: " .. npc:GetLevel() ..
+                                   "  Class: " .. npc:GetClassName())
+        return
+    end
+
+    -- HP line (always show percentage)
+    local max_hp = npc:GetMaxHP()
+    local cur_hp = npc:GetHP()
+    local hp_pct = max_hp > 0 and math.floor(cur_hp / max_hp * 100) or 0
+    local hp_str = "HP: " .. cur_hp .. "/" .. max_hp .. " (" .. hp_pct .. "%)"
+
+    -- Mana line (show N/A for pure melee)
+    local max_mana = npc:GetMaxMana()
+    local mana_str
+    if max_mana == 0 then
+        mana_str = "Mana: N/A"
+    else
+        local cur_mana = npc:GetMana()
+        local mana_pct = math.floor(cur_mana / max_mana * 100)
+        mana_str = "Mana: " .. cur_mana .. "/" .. max_mana .. " (" .. mana_pct .. "%)"
+    end
+
+    -- Target
+    local target_mob = npc:GetTarget()
+    local target_str = (target_mob and target_mob.valid) and target_mob:GetCleanName() or "None"
+
+    -- Sit/stand state
+    local state_str = npc:IsSitting() and "Sitting" or "Standing"
+
+    -- Follow/guard mode
     local mode = companion_modes[npc:GetID()] or "follow"
     mode = mode:sub(1, 1):upper() .. mode:sub(2)
 
-    client:Message(15, "=== " .. npc:GetCleanName() .. " ===")
-    client:Message(15, "  Level: " .. npc:GetLevel() ..
-                       "  Class: " .. npc:GetClassName())
-    client:Message(15, "  HP: " .. npc:GetHP() .. "/" .. npc:GetMaxHP() ..
-                       "  Mana: " .. npc:GetMana() .. "/" .. npc:GetMaxMana())
+    -- Stance
+    local stance_str = stance_names[npc:GetStance()] or "Unknown"
+
+    -- XP
     local current_xp    = npc:GetCompanionXP()
     local next_level_xp = npc:GetXPForNextLevel()
-    client:Message(15, "  XP: " .. current_xp .. " / " .. next_level_xp)
-    client:Message(15, "  Stance: " ..
-                       (stance_names[npc:GetStance()] or "Unknown") ..
-                       "  Mode: " .. mode)
-    client:Message(15, "  Type: " ..
-                       (type_names[npc:GetCompanionType()] or "Unknown"))
+
+    companion_say(npc, client, "=== " .. name .. " ===")
+    companion_say(npc, client, "  Level: " .. npc:GetLevel() ..
+                               "  Class: " .. npc:GetClassName() ..
+                               "  Type: " .. (type_names[npc:GetCompanionType()] or "Unknown"))
+    companion_say(npc, client, "  " .. hp_str)
+    companion_say(npc, client, "  " .. mana_str)
+    companion_say(npc, client, "  XP: " .. current_xp .. " / " .. next_level_xp)
+    companion_say(npc, client, "  Stance: " .. stance_str ..
+                               "  Mode: " .. mode ..
+                               "  State: " .. state_str)
+    companion_say(npc, client, "  Target: " .. target_str)
+
+    -- Buff list
+    local buffs = npc:GetBuffs()
+    if buffs then
+        local buff_lines = {}
+        for _, buff in pairs(buffs) do
+            if buff and buff.valid then
+                local spell_id = buff:GetSpellID()
+                if spell_id and spell_id > 0 then
+                    local spell_name = eq.get_spell_name(spell_id) or ("Spell " .. spell_id)
+                    local tics = buff:GetTicsRemaining()
+                    local dur_str
+                    if tics and tics > 0 then
+                        local secs = tics * 6
+                        if secs < 60 then
+                            dur_str = "<1 min"
+                        else
+                            dur_str = math.floor(secs / 60) .. " min"
+                        end
+                    else
+                        dur_str = "permanent"
+                    end
+                    buff_lines[#buff_lines + 1] = "    " .. spell_name .. " (" .. dur_str .. ")"
+                end
+            end
+        end
+        if #buff_lines > 0 then
+            companion_say(npc, client, "  Buffs (" .. #buff_lines .. " active):")
+            for _, line in ipairs(buff_lines) do
+                companion_say(npc, client, line)
+            end
+        else
+            companion_say(npc, client, "  Buffs: none")
+        end
+    end
 end
 
 -- Information: show detailed combat stats for any targeted companion (read-only, no ownership required)
@@ -631,93 +728,151 @@ function companion.cmd_stats(npc, client, args)
 end
 
 -- Information: display help, optionally filtered by category topic
+-- When sent @all, only the first companion responds (data bucket lock with 1s TTL)
 function companion.cmd_help(npc, client, args)
     local topic = args:lower():gsub("^%s+", ""):gsub("%s+$", "")
 
+    -- @all !help deduplication: only the first companion to receive this command responds.
+    -- Key is zone-scoped so companions in different zones don't interfere.
+    -- TTL of 1 second covers the entire @all dispatch window.
+    local help_lock_key = "help_lock_" .. tostring(eq.get_zone_id())
+    local lock_held = eq.get_data(help_lock_key)
+    if lock_held and lock_held ~= "" then
+        return  -- Another companion already responded this tick
+    end
+    -- Claim the lock before responding
+    eq.set_data(help_lock_key, "1", "1")
+
     if topic == "" then
-        client:Message(15, "=== Companion Commands ===")
-        client:Message(15, "Stance:")
-        client:Message(15, "  !passive       - Disengage from combat, follow owner")
-        client:Message(15, "  !balanced      - Default combat stance")
-        client:Message(15, "  !aggressive    - Actively pursue and attack enemies")
-        client:Message(15, "Movement:")
-        client:Message(15, "  !follow        - Follow you at standard distance")
-        client:Message(15, "  !guard         - Hold current position")
-        client:Message(15, "  !recall        - Return to your side (if stuck)")
-        client:Message(15, "Equipment:")
-        client:Message(15, "  !equipment     - Show equipped items")
-        client:Message(15, "  !unequip <slot> - Return item from slot")
-        client:Message(15, "  !unequip all   - Return all equipped items")
-        client:Message(15, "  !equip         - How to give items")
-        client:Message(15, "Information:")
-        client:Message(15, "  !stats         - Show detailed combat stats")
-        client:Message(15, "  !status        - Show companion overview")
-        client:Message(15, "  !help          - This command list")
-        client:Message(15, "  !help <topic>  - Details for a category")
-        client:Message(15, "Combat:")
-        client:Message(15, "  !target        - Companion targets your target")
-        client:Message(15, "  !assist        - Companion assists you in combat")
-        client:Message(15, "Control:")
-        client:Message(15, "  !dismiss       - Dismiss companion")
-        client:Message(15, "To talk naturally, just /say without ! prefix.")
-        client:Message(15, "Type '!help <topic>' for details.")
+        companion_say(npc, client, "=== Companion Commands ===")
+        companion_say(npc, client, "Stance: !passive  !balanced  !aggressive")
+        companion_say(npc, client, "Movement: !follow  !guard  !recall  !tome  !flee")
+        companion_say(npc, client, "Combat: !target  !assist")
+        companion_say(npc, client, "Buffs: !buffme  !buffs")
+        companion_say(npc, client, "Equipment: !equipment  !equip  !unequip  !equipmentupgrade  !equipmentmissing")
+        companion_say(npc, client, "Information: !stats  !status  !help")
+        companion_say(npc, client, "Control: !dismiss")
+        companion_say(npc, client, "Type '!help <topic>' for details. Topics: stance, movement, combat, buffs, equipment, information, control")
 
     elseif topic == "stance" then
-        client:Message(15, "=== Stance Commands ===")
-        client:Message(15, "  !passive    - Stop fighting, follow owner.")
-        client:Message(15, "               Companion will not engage combat.")
-        client:Message(15, "  !balanced   - Default. Fight when attacked or")
-        client:Message(15, "               when owner is attacked.")
-        client:Message(15, "  !aggressive - Actively seek and attack enemies")
-        client:Message(15, "               in range.")
+        companion_say(npc, client, "=== Stance Commands ===")
+        companion_say(npc, client, "  !passive    - Stop fighting, follow owner. Will not engage combat.")
+        companion_say(npc, client, "  !balanced   - Default. Fight when attacked or owner is attacked.")
+        companion_say(npc, client, "  !aggressive - Actively seek and attack enemies in range.")
 
     elseif topic == "movement" then
-        client:Message(15, "=== Movement Commands ===")
-        client:Message(15, "  !follow  - Follow you at standard distance.")
-        client:Message(15, "  !guard   - Hold current position, stop following.")
-        client:Message(15, "  !recall  - Teleport companion to your location if")
-        client:Message(15, "             stuck or far away (>200 units). Has a")
-        client:Message(15, "             30-second cooldown.")
-
-    elseif topic == "equipment" then
-        client:Message(15, "=== Equipment Commands ===")
-        client:Message(15, "  !equipment      - Show all equipped items.")
-        client:Message(15, "  !unequip <slot> - Return item from slot.")
-        client:Message(15, "  !unequip all    - Return all equipped items.")
-        client:Message(15, "  !equip          - How to give items to companion.")
-        client:Message(15, "Valid slots: primary, secondary, head, chest, arms,")
-        client:Message(15, "  wrist1, wrist2, hands, legs, feet, charm, ear1,")
-        client:Message(15, "  ear2, face, neck, shoulder, back, finger1,")
-        client:Message(15, "  finger2, range, waist, ammo")
+        companion_say(npc, client, "=== Movement Commands ===")
+        companion_say(npc, client, "  !follow  - Follow you at standard distance.")
+        companion_say(npc, client, "  !guard   - Hold current position, stop following.")
+        companion_say(npc, client, "  !recall  - Teleport to your location if stuck/far (>200 units, 30s cooldown).")
+        companion_say(npc, client, "  !tome    - Path to your location (no cooldown, within 50 units: skips).")
+        companion_say(npc, client, "  !flee    - Go passive, move to you, set follow mode. Hate list retained.")
 
     elseif topic == "combat" then
-        client:Message(15, "=== Combat Commands ===")
-        client:Message(15, "  !target - Companion targets your current target.")
-        client:Message(15, "            In balanced/aggressive, engages combat.")
-        client:Message(15, "            In passive, faces target but won't attack.")
-        client:Message(15, "  !assist - Same as !target. Conveys 'help me fight")
-        client:Message(15, "            this'. Same behavior as !target.")
+        companion_say(npc, client, "=== Combat Commands ===")
+        companion_say(npc, client, "  !target - Target your current target. In balanced/aggressive: engages.")
+        companion_say(npc, client, "  !assist - Attack your target. Auto-switches passive->balanced stance.")
 
-    elseif topic == "control" then
-        client:Message(15, "=== Control Commands ===")
-        client:Message(15, "  !dismiss - Dismiss your companion. They can be")
-        client:Message(15, "             re-recruited later with a +10% bonus.")
+    elseif topic == "buffs" then
+        companion_say(npc, client, "=== Buff Commands ===")
+        companion_say(npc, client, "  !buffme - Queue buff refresh on you only. Cast on next idle window.")
+        companion_say(npc, client, "  !buffs  - Queue buff refresh on all party members.")
+        companion_say(npc, client, "  Casters only. Requires >10% mana. Replaces any pending request.")
+
+    elseif topic == "equipment" then
+        companion_say(npc, client, "=== Equipment Commands ===")
+        companion_say(npc, client, "  !equipment              - Show all equipped items.")
+        companion_say(npc, client, "  !equip                  - How to give items (use trade window).")
+        companion_say(npc, client, "  !unequip <slot>         - Return item from slot.")
+        companion_say(npc, client, "  !unequip all            - Return all equipped items.")
+        companion_say(npc, client, "  !equipmentupgrade [link] - Evaluate linked item vs equipped.")
+        companion_say(npc, client, "  !equipmentmissing       - List empty equipment slots.")
+        companion_say(npc, client, "Valid slots: primary, secondary, head, chest, arms, wrist1, wrist2,")
+        companion_say(npc, client, "  hands, legs, feet, charm, ear1, ear2, face, neck, shoulder,")
+        companion_say(npc, client, "  back, finger1, finger2, range, waist, ammo")
 
     elseif topic == "information" then
-        client:Message(15, "=== Information Commands ===")
-        client:Message(15, "  !stats        - Show detailed combat stats.")
-        client:Message(15, "                  Available to any player targeting any")
-        client:Message(15, "                  companion (not owner-restricted).")
-        client:Message(15, "  !status       - Show companion overview: stance, XP, mode.")
-        client:Message(15, "  !help         - Show all available commands.")
-        client:Message(15, "  !help <topic> - Show details for a category.")
-        client:Message(15, "                  Topics: stance, movement, equipment,")
-        client:Message(15, "                  combat, control, information")
+        companion_say(npc, client, "=== Information Commands ===")
+        companion_say(npc, client, "  !stats        - Detailed combat stats (any player, any companion).")
+        companion_say(npc, client, "  !status       - Overview: HP, mana, stance, target, buffs.")
+        companion_say(npc, client, "  !help         - This command list.")
+        companion_say(npc, client, "  !help <topic> - Details for: stance, movement, combat, buffs, equipment, information, control")
+
+    elseif topic == "control" then
+        companion_say(npc, client, "=== Control Commands ===")
+        companion_say(npc, client, "  !dismiss - Dismiss companion. Re-recruit later with +10% bonus.")
 
     else
-        client:Message(15, "Unknown help topic: " .. topic)
-        client:Message(15, "Available topics: stance, movement, equipment, " ..
-                           "combat, control, information")
+        companion_say(npc, client, "Unknown help topic: " .. topic)
+        companion_say(npc, client, "Topics: stance, movement, combat, buffs, equipment, information, control")
+    end
+end
+
+-- Equipment: list all empty equipment slots
+function companion.cmd_equipmentmissing(npc, client, args)
+    -- COMPANION_SLOT_NAMES is defined in global_npc.lua; use our own local copy here
+    -- for display. Slot 21 (PowerSource) is intentionally skipped — companions don't use it.
+    local slot_names = {
+        [0]  = "charm",   [1]  = "ear1",     [2]  = "head",    [3]  = "face",
+        [4]  = "ear2",    [5]  = "neck",      [6]  = "shoulder",[7]  = "arms",
+        [8]  = "back",    [9]  = "wrist1",    [10] = "wrist2",  [11] = "range",
+        [12] = "hands",   [13] = "primary",   [14] = "secondary",[15] = "finger1",
+        [16] = "finger2", [17] = "chest",     [18] = "legs",    [19] = "feet",
+        [20] = "waist",   [22] = "ammo",
+    }
+    local empty = {}
+    for slot_id = 0, 22 do
+        if slot_id ~= 21 and slot_names[slot_id] then
+            if npc:GetEquipment(slot_id) == 0 then
+                empty[#empty + 1] = slot_names[slot_id]
+            end
+        end
+    end
+    local name = npc:GetCleanName()
+    if #empty == 0 then
+        companion_say(npc, client, name .. " has all equipment slots filled.")
+    else
+        companion_say(npc, client, name .. " has nothing equipped in: " .. table.concat(empty, ", "))
+    end
+end
+
+-- Movement: path to player's location (no cooldown; skips if already nearby)
+function companion.cmd_tome(npc, client, args)
+    local name = npc:GetCleanName()
+    if npc:GetHP() <= 0 then
+        companion_say(npc, client, name .. " is dead and cannot move.")
+        return
+    end
+    local dist = npc:CalculateDistance(client)
+    if dist < 50 then
+        companion_say(npc, client, name .. " is already nearby.")
+        return
+    end
+    npc:RunTo(client:GetX(), client:GetY(), client:GetZ())
+    companion_say(npc, client, name .. " moves toward you.")
+end
+
+-- Movement: disengage and retreat to player (passive + RunTo + follow mode)
+-- NOTE: hate list is intentionally NOT cleared (lore-correct; mobs continue pursuit)
+function companion.cmd_flee(npc, client, args)
+    local name = npc:GetCleanName()
+    if npc:GetHP() <= 0 then
+        companion_say(npc, client, name .. " is dead and cannot flee.")
+        return
+    end
+    local was_in_combat = npc:IsEngaged()
+    local was_passive   = (npc:GetStance() == 0)
+
+    -- Set passive and move to follow mode
+    npc:SetStance(0)
+    npc:SetGuardMode(false)
+    companion_modes[npc:GetID()] = "follow"
+    npc:RunTo(client:GetX(), client:GetY(), client:GetZ())
+
+    if was_in_combat and not was_passive then
+        companion_say(npc, client, name .. " disengages and retreats to you!")
+    else
+        companion_say(npc, client, name .. " moves to follow you.")
     end
 end
 
@@ -738,18 +893,260 @@ function companion.cmd_target(npc, client, args)
 end
 
 -- Combat: companion assists player (targets and engages player's target)
--- Functionally identical to cmd_target; separate command for semantic clarity
+-- Auto-switches from passive to balanced stance before engaging.
 function companion.cmd_assist(npc, client, args)
-    local player_target = client:GetTarget()
-    if not player_target or not player_target.valid then
-        client:Message(15, "You must target an enemy first.")
+    local name = npc:GetCleanName()
+
+    -- Dead check
+    if npc:GetHP() <= 0 then
+        companion_say(npc, client, name .. " is dead and cannot fight.")
         return
     end
-    npc:SetTarget(player_target)
-    if npc:GetStance() ~= 0 then
-        npc:AddToHateList(player_target, 1, 0, false, false, false)
+
+    local player_target = client:GetTarget()
+    if not player_target or not player_target.valid then
+        companion_say(npc, client, name .. " has no target to assist with. Target a mob first.")
+        return
     end
-    npc:Say("I will assist.")
+
+    -- Friendly/self target check
+    if player_target == npc then
+        companion_say(npc, client, name .. " will not attack themselves.")
+        return
+    end
+    if not npc:IsAttackAllowed(player_target) then
+        companion_say(npc, client, name .. " will not attack a friendly target.")
+        return
+    end
+
+    -- Auto-switch passive -> balanced before engaging
+    local switched_stance = false
+    if npc:GetStance() == 0 then
+        npc:SetStance(1)
+        switched_stance = true
+    end
+
+    npc:SetTarget(player_target)
+    npc:AddToHateList(player_target, 1, 0, false, false, false)
+
+    local target_name = player_target:GetCleanName()
+    if switched_stance then
+        companion_say(npc, client, name .. " switches to balanced stance and assists against " .. target_name .. "!")
+    else
+        companion_say(npc, client, name .. " assists against " .. target_name .. "!")
+    end
+end
+
+-- Buffs: queue a buff refresh targeting the owner only
+function companion.cmd_buffme(npc, client, args)
+    local name = npc:GetCleanName()
+
+    if npc:GetHP() <= 0 then
+        companion_say(npc, client, name .. " is dead and cannot cast spells.")
+        return
+    end
+    -- Check if companion is a caster (pure melee have 0 max mana)
+    if npc:GetMaxMana() == 0 then
+        companion_say(npc, client, name .. " has no buff spells available.")
+        return
+    end
+    -- OOM check: below 10% mana
+    if npc:GetManaRatio() < 10 then
+        companion_say(npc, client, name .. " is too low on mana to buff right now.")
+        return
+    end
+
+    -- Set buff request and start processing timer
+    npc:SetEntityVariable("buff_request_target", "owner")
+    npc:SetEntityVariable("buff_request_retries", "0")
+    eq.set_timer("buff_request_" .. npc:GetID(), 2000)
+    companion_say(npc, client, name .. " will refresh your buffs when able.")
+end
+
+-- Buffs: queue a buff refresh targeting all party members
+function companion.cmd_buffs(npc, client, args)
+    local name = npc:GetCleanName()
+
+    if npc:GetHP() <= 0 then
+        companion_say(npc, client, name .. " is dead and cannot cast spells.")
+        return
+    end
+    if npc:GetMaxMana() == 0 then
+        companion_say(npc, client, name .. " has no buff spells available.")
+        return
+    end
+    if npc:GetManaRatio() < 10 then
+        companion_say(npc, client, name .. " is too low on mana to buff right now.")
+        return
+    end
+
+    npc:SetEntityVariable("buff_request_target", "party")
+    npc:SetEntityVariable("buff_request_retries", "0")
+    eq.set_timer("buff_request_" .. npc:GetID(), 2000)
+    companion_say(npc, client, name .. " will refresh party buffs when able.")
+end
+
+-- Helper: compute a stat score for an item using eq.get_item_stat(item_id, identifier).
+-- Armor score: AC + all stat bonuses + HP + Mana
+-- Weapon score adds: floor(Damage * 10 / Delay)
+-- Returns integer score.
+local function item_stat_score_by_id(item_id)
+    local score = eq.get_item_stat(item_id, "ac")
+                + eq.get_item_stat(item_id, "astr")
+                + eq.get_item_stat(item_id, "asta")
+                + eq.get_item_stat(item_id, "aagi")
+                + eq.get_item_stat(item_id, "adex")
+                + eq.get_item_stat(item_id, "awis")
+                + eq.get_item_stat(item_id, "aint")
+                + eq.get_item_stat(item_id, "acha")
+                + eq.get_item_stat(item_id, "hp")
+                + eq.get_item_stat(item_id, "mana")
+    local delay = eq.get_item_stat(item_id, "delay")
+    if delay and delay > 0 then
+        local dmg = eq.get_item_stat(item_id, "damage") or 0
+        score = score + math.floor(dmg * 10 / delay)
+    end
+    return score
+end
+
+-- Helper: parse an EQ item link from a message string.
+-- After TitaniumToServerSayLink(), the internal link body is 56 chars between \x12 delimiters.
+-- Body layout (1-indexed): [1 type byte][5 hex item_id][5 hex aug1]...[rest]
+-- Item ID is always at body chars 2-6 as 5 uppercase hex digits.
+-- Returns item_id (number) or nil if no valid link found.
+local function parse_item_link(msg)
+    if not msg then return nil end
+    -- \x12 is byte 18. Find the opening delimiter.
+    local delim_pos = string.find(msg, "\18")
+    if not delim_pos then return nil end
+    -- Item ID starts 2 chars after the opening \x12 (skip 1 type byte)
+    local hex_start = delim_pos + 2
+    local hex_str = msg:sub(hex_start, hex_start + 4)  -- 5 hex chars
+    if #hex_str < 5 then return nil end
+    local item_id = tonumber(hex_str, 16)
+    if not item_id or item_id <= 0 then return nil end
+    return item_id
+end
+
+-- Equipment: evaluate a linked item vs. what the companion currently has equipped
+-- Uses eq.get_item_stat() for stat comparisons — no ItemInst needed.
+function companion.cmd_equipmentupgrade(npc, client, args)
+    local name = npc:GetCleanName()
+
+    -- Dead companion: silent (per architecture spec)
+    if npc:GetHP() <= 0 then return end
+
+    -- Parse item link from the args string
+    local item_id = parse_item_link(args)
+    if not item_id then
+        companion_say(npc, client, "Please link an item for me to evaluate.")
+        return
+    end
+
+    -- Basic validity check: item must exist (slots > 0 means it's equippable)
+    local slots_bitmask = eq.get_item_stat(item_id, "slots")
+    if not slots_bitmask or slots_bitmask == 0 then
+        companion_say(npc, client, "Please link an item for me to evaluate.")
+        return
+    end
+
+    -- Equippability check using class/race restrictions
+    local enforce_class = eq.get_rule("Companions:EnforceClassRestrictions") == "true"
+    local enforce_race  = eq.get_rule("Companions:EnforceRaceRestrictions") == "true"
+    if enforce_class or enforce_race then
+        local NPC_RACE_TO_PLAYER_RACE_LOCAL = {
+            [44]=1,[55]=1,[67]=1,[71]=1,[77]=6,[78]=3,[81]=11,[90]=2,[92]=9,[93]=10,[94]=8,
+        }
+        local raw_race   = npc:GetRace()
+        local comp_class = npc:GetClass()
+        -- Map NPC race to player race equivalent for IsEquipable check
+        local mapped_race = NPC_RACE_TO_PLAYER_RACE_LOCAL[raw_race]
+        local check_race
+        if mapped_race then
+            check_race = mapped_race
+        elseif raw_race > 16 then
+            check_race = 1  -- bypass race check for non-player races
+        else
+            check_race = raw_race
+        end
+        -- Check class restriction via bitmask (class_id bitmask in "classes" field)
+        if enforce_class then
+            local class_mask = eq.get_item_stat(item_id, "classes")
+            if class_mask and class_mask > 0 then
+                local class_bit = math.floor(class_mask / (2 ^ (comp_class - 1))) % 2
+                if class_bit == 0 then
+                    return  -- Silent: companion class cannot use this item
+                end
+            end
+        end
+        if enforce_race then
+            local race_mask = eq.get_item_stat(item_id, "races")
+            if race_mask and race_mask > 0 then
+                local race_bit = math.floor(race_mask / (2 ^ (check_race - 1))) % 2
+                if race_bit == 0 then
+                    return  -- Silent: companion race cannot use this item
+                end
+            end
+        end
+    end
+
+    -- Determine best slot for this item based on Slots bitmask
+    local slot_names_local = {
+        [0]="charm",[1]="ear1",[2]="head",[3]="face",[4]="ear2",[5]="neck",
+        [6]="shoulder",[7]="arms",[8]="back",[9]="wrist1",[10]="wrist2",[11]="range",
+        [12]="hands",[13]="primary",[14]="secondary",[15]="finger1",[16]="finger2",
+        [17]="chest",[18]="legs",[19]="feet",[20]="waist",[22]="ammo",
+    }
+
+    local target_slot = nil
+    local first_match = nil
+    for slot_id = 0, 22 do
+        if slot_id ~= 21 and slot_names_local[slot_id] then
+            local bit_set = math.floor(slots_bitmask / (2 ^ slot_id)) % 2
+            if bit_set == 1 then
+                if not first_match then first_match = slot_id end
+                if npc:GetEquipment(slot_id) == 0 then
+                    target_slot = slot_id
+                    break
+                end
+            end
+        end
+    end
+    if not target_slot then target_slot = first_match end
+    if not target_slot then return end  -- No valid slot; silent
+
+    local slot_name    = slot_names_local[target_slot] or ("slot " .. target_slot)
+    local new_name     = eq.get_item_name(item_id) or ("Item " .. item_id)
+    local equipped_id  = npc:GetEquipment(target_slot)
+
+    -- Empty slot: always an upgrade
+    if equipped_id == 0 then
+        companion_say(npc, client, name .. ": " .. new_name ..
+                      " is an upgrade! My " .. slot_name .. " slot is empty.")
+        return
+    end
+
+    -- Compare stat scores
+    local new_score = item_stat_score_by_id(item_id)
+    local cur_score = item_stat_score_by_id(equipped_id)
+    local cur_name  = eq.get_item_name(equipped_id) or ("Item " .. equipped_id)
+
+    if new_score > cur_score then
+        companion_say(npc, client, name .. ": " .. new_name ..
+                      " (score: " .. new_score .. ") is an upgrade over " ..
+                      cur_name .. " (score: " .. cur_score .. ") in my " ..
+                      slot_name .. " slot.")
+    elseif new_score == cur_score then
+        companion_say(npc, client, name .. ": " .. new_name ..
+                      " (score: " .. new_score .. ") is equal to " ..
+                      cur_name .. " (score: " .. cur_score .. ") in my " ..
+                      slot_name .. " slot.")
+    else
+        companion_say(npc, client, name .. ": " .. new_name ..
+                      " (score: " .. new_score .. ") is worse than " ..
+                      cur_name .. " (score: " .. cur_score .. ") in my " ..
+                      slot_name .. " slot.")
+    end
 end
 
 -- Control: dismiss companion voluntarily (preserves re-recruitment record and +10% bonus)

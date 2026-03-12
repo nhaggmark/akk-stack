@@ -397,6 +397,130 @@ function event_timer(e)
         -- Restart the timer for the next check cycle
         local interval_ms = (llm_config.companion_commentary_min_interval_s or 600) * 1000
         eq.set_timer(e.timer, interval_ms)
+        return
+    end
+
+    -- Buff request timers are named "buff_request_<entity_id>"
+    -- Fires when !buffme or !buffs sets buff_request_target entity variable.
+    -- Waits until companion is idle (not engaged, not casting), then queries
+    -- companion_spell_sets for buff spells and casts them on appropriate targets.
+    -- Gives up after 30 retries (~60 seconds total) to prevent timer accumulation.
+    --
+    -- SpellType_Buff = (1<<3) = 8, SpellType_PreCombatBuff = (1<<20) = 1048576
+    if e.timer and e.timer:sub(1, 13) == "buff_request_" and e.self:IsCompanion() then
+        eq.stop_timer(e.timer)
+
+        local request = e.self:GetEntityVariable("buff_request_target")
+        if not request or request == "" then
+            return  -- Request was cancelled or already processed
+        end
+
+        -- Retry cap: 30 retries * 2s = 60 seconds maximum wait
+        local retries = tonumber(e.self:GetEntityVariable("buff_request_retries")) or 0
+        if retries >= 30 then
+            e.self:SetEntityVariable("buff_request_target", "")
+            e.self:SetEntityVariable("buff_request_retries", "0")
+            local owner_id = e.self:GetOwnerCharacterID()
+            if owner_id ~= 0 then
+                local owner = eq.get_entity_list():GetClientByCharID(owner_id)
+                if owner and owner.valid then
+                    local group = owner:GetGroup()
+                    if group and group.valid then
+                        group:GroupMessage(e.self, e.self:GetCleanName() ..
+                            " was unable to buff right now.")
+                    end
+                end
+            end
+            return
+        end
+
+        -- Wait until companion is idle (not in combat, not casting)
+        if e.self:IsEngaged() or e.self:IsCasting() then
+            e.self:SetEntityVariable("buff_request_retries", tostring(retries + 1))
+            eq.set_timer(e.timer, 2000)
+            return
+        end
+
+        -- Resolve owner
+        local owner_id = e.self:GetOwnerCharacterID()
+        if owner_id == 0 then
+            e.self:SetEntityVariable("buff_request_target", "")
+            e.self:SetEntityVariable("buff_request_retries", "0")
+            return
+        end
+        local owner = eq.get_entity_list():GetClientByCharID(owner_id)
+        if not owner or not owner.valid then
+            e.self:SetEntityVariable("buff_request_target", "")
+            e.self:SetEntityVariable("buff_request_retries", "0")
+            return
+        end
+
+        -- Build target list based on request type
+        local targets = {}
+        if request == "owner" then
+            targets[#targets + 1] = owner
+        else
+            -- "party": all group members
+            local group = owner:GetGroup()
+            if group and group.valid then
+                for i = 0, 5 do
+                    local member = group:GetMember(i)
+                    if member and member.valid then
+                        targets[#targets + 1] = member
+                    end
+                end
+            else
+                targets[#targets + 1] = owner  -- solo: just owner
+            end
+        end
+
+        -- Query companion_spell_sets for buff spells for this companion's class/level
+        -- SpellType_Buff=8, SpellType_PreCombatBuff=1048576 — use bitwise OR mask check
+        local comp_class = e.self:GetClass()
+        local comp_level = e.self:GetLevel()
+        local BUFF_TYPE_MASK = 8 + 1048576  -- SpellType_Buff | SpellType_PreCombatBuff
+
+        local db = Database()
+        local stmt = db:prepare(
+            "SELECT spell_id FROM companion_spell_sets " ..
+            "WHERE class_id = ? AND min_level <= ? AND max_level >= ? " ..
+            "AND (spell_type & ?) > 0 " ..
+            "ORDER BY priority ASC, id ASC"
+        )
+        stmt:execute({comp_class, comp_level, comp_level, BUFF_TYPE_MASK})
+
+        local cast_count = 0
+        local row = stmt:fetch_hash()
+        while row do
+            local spell_id = tonumber(row.spell_id)
+            if spell_id and spell_id > 0 then
+                for _, target in ipairs(targets) do
+                    if target and target.valid then
+                        -- Only cast if target doesn't already have this buff
+                        -- (simple approach: attempt cast, let engine handle CanBuffStack)
+                        local target_id = target:GetID()
+                        e.self:CastSpell(spell_id, target_id, 7)  -- slot 7 = misc spell slot
+                        cast_count = cast_count + 1
+                    end
+                end
+            end
+            row = stmt:fetch_hash()
+        end
+        db:close()
+
+        -- Clear the request
+        e.self:SetEntityVariable("buff_request_target", "")
+        e.self:SetEntityVariable("buff_request_retries", "0")
+
+        -- Notify if no buff spells found (shouldn't happen for casters, but guard against it)
+        if cast_count == 0 then
+            local group = owner:GetGroup()
+            if group and group.valid then
+                group:GroupMessage(e.self, e.self:GetCleanName() ..
+                    " has no buff spells available.")
+            end
+        end
+        return
     end
 end
 
