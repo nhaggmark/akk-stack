@@ -402,9 +402,18 @@ function event_timer(e)
 
     -- Buff request timers are named "buff_request_<entity_id>"
     -- Fires when !buffme or !buffs sets buff_request_target entity variable.
-    -- Waits until companion is idle (not engaged, not casting), then queries
-    -- companion_spell_sets for buff spells and casts them on appropriate targets.
-    -- Gives up after 30 retries (~60 seconds total) to prevent timer accumulation.
+    --
+    -- Two-phase sequential queue to fix BUG-025:
+    -- CastSpell() sets casting_spell_id on the first call; all subsequent calls in
+    -- the same tick find it non-zero and silently return false. The original nested
+    -- loop only ever cast the first spell on the first target.
+    --
+    -- Fix: build a queue of {spell_id, target_id} pairs (JSON in entity var), then
+    -- process exactly ONE pair per timer tick. Re-arm at 2000ms until queue empty.
+    --
+    -- Phase 1 (buff_queue is empty): build queue, then fall through to Phase 2 to
+    --   cast the first entry immediately (no extra 2s delay).
+    -- Phase 2 (buff_queue is set): pop one entry, cast one spell, re-arm timer.
     --
     -- SpellType_Buff = (1<<3) = 8, SpellType_PreCombatBuff = (1<<20) = 1048576
     if e.timer and e.timer:sub(1, 13) == "buff_request_" and e.self:IsCompanion() then
@@ -420,6 +429,8 @@ function event_timer(e)
         if retries >= 30 then
             e.self:SetEntityVariable("buff_request_target", "")
             e.self:SetEntityVariable("buff_request_retries", "0")
+            e.self:SetEntityVariable("buff_queue", "")
+            e.self:SetEntityVariable("buff_queue_idx", "")
             local owner_id = e.self:GetOwnerCharacterID()
             if owner_id ~= 0 then
                 local owner = eq.get_entity_list():GetClientByCharID(owner_id)
@@ -446,80 +457,123 @@ function event_timer(e)
         if owner_id == 0 then
             e.self:SetEntityVariable("buff_request_target", "")
             e.self:SetEntityVariable("buff_request_retries", "0")
+            e.self:SetEntityVariable("buff_queue", "")
+            e.self:SetEntityVariable("buff_queue_idx", "")
             return
         end
         local owner = eq.get_entity_list():GetClientByCharID(owner_id)
         if not owner or not owner.valid then
             e.self:SetEntityVariable("buff_request_target", "")
             e.self:SetEntityVariable("buff_request_retries", "0")
+            e.self:SetEntityVariable("buff_queue", "")
+            e.self:SetEntityVariable("buff_queue_idx", "")
             return
         end
 
-        -- Build target list based on request type
-        local targets = {}
-        if request == "owner" then
-            targets[#targets + 1] = owner
-        else
-            -- "party": all group members
-            local group = owner:GetGroup()
-            if group and group.valid then
-                for i = 0, 5 do
-                    local member = group:GetMember(i)
-                    if member and member.valid then
-                        targets[#targets + 1] = member
-                    end
-                end
+        local json = require("json")
+
+        -- Phase 1: Build the queue if it doesn't exist yet.
+        -- Runs once per !buffs or !buffme command. Builds the full ordered list of
+        -- {spell_id, target_id} pairs and stores it as JSON in buff_queue.
+        local queue_raw = e.self:GetEntityVariable("buff_queue")
+        if not queue_raw or queue_raw == "" then
+            -- Build target list based on request type
+            local target_ids = {}
+            if request == "owner" then
+                target_ids[#target_ids + 1] = owner:GetID()
             else
-                targets[#targets + 1] = owner  -- solo: just owner
-            end
-        end
-
-        -- Query companion_spell_sets for buff spells for this companion's class/level
-        -- SpellType_Buff=8, SpellType_PreCombatBuff=1048576 — use bitwise OR mask check
-        local comp_class = e.self:GetClass()
-        local comp_level = e.self:GetLevel()
-        local BUFF_TYPE_MASK = 8 + 1048576  -- SpellType_Buff | SpellType_PreCombatBuff
-
-        local db = Database()
-        local stmt = db:prepare(
-            "SELECT spell_id FROM companion_spell_sets " ..
-            "WHERE class_id = ? AND min_level <= ? AND max_level >= ? " ..
-            "AND (spell_type & ?) > 0 " ..
-            "ORDER BY priority ASC, id ASC"
-        )
-        stmt:execute({comp_class, comp_level, comp_level, BUFF_TYPE_MASK})
-
-        local cast_count = 0
-        local row = stmt:fetch_hash()
-        while row do
-            local spell_id = tonumber(row.spell_id)
-            if spell_id and spell_id > 0 then
-                for _, target in ipairs(targets) do
-                    if target and target.valid then
-                        -- Only cast if target doesn't already have this buff
-                        -- (simple approach: attempt cast, let engine handle CanBuffStack)
-                        local target_id = target:GetID()
-                        e.self:CastSpell(spell_id, target_id, 7)  -- slot 7 = misc spell slot
-                        cast_count = cast_count + 1
+                -- "party": all group members including NPC companions
+                local group = owner:GetGroup()
+                if group and group.valid then
+                    for i = 0, 5 do
+                        local member = group:GetMember(i)
+                        if member and member.valid then
+                            target_ids[#target_ids + 1] = member:GetID()
+                        end
                     end
+                else
+                    target_ids[#target_ids + 1] = owner:GetID()  -- solo: just owner
                 end
             end
-            row = stmt:fetch_hash()
-        end
-        db:close()
 
-        -- Clear the request
-        e.self:SetEntityVariable("buff_request_target", "")
-        e.self:SetEntityVariable("buff_request_retries", "0")
+            -- Query companion_spell_sets for buff spells for this companion's class/level
+            local comp_class = e.self:GetClass()
+            local comp_level = e.self:GetLevel()
+            local BUFF_TYPE_MASK = 8 + 1048576  -- SpellType_Buff | SpellType_PreCombatBuff
 
-        -- Notify if no buff spells found (shouldn't happen for casters, but guard against it)
-        if cast_count == 0 then
-            local group = owner:GetGroup()
-            if group and group.valid then
-                group:GroupMessage(e.self, e.self:GetCleanName() ..
-                    " has no buff spells available.")
+            local db = Database()
+            local stmt = db:prepare(
+                "SELECT spell_id FROM companion_spell_sets " ..
+                "WHERE class_id = ? AND min_level <= ? AND max_level >= ? " ..
+                "AND (spell_type & ?) > 0 " ..
+                "ORDER BY priority ASC, id ASC"
+            )
+            stmt:execute({comp_class, comp_level, comp_level, BUFF_TYPE_MASK})
+
+            -- Build ordered list: for each spell, queue it for each target.
+            -- Spell-major order: cast spell 1 on all targets, then spell 2, etc.
+            local queue = {}
+            local row = stmt:fetch_hash()
+            while row do
+                local spell_id = tonumber(row.spell_id)
+                if spell_id and spell_id > 0 then
+                    for _, target_id in ipairs(target_ids) do
+                        queue[#queue + 1] = {spell_id, target_id}
+                    end
+                end
+                row = stmt:fetch_hash()
             end
+            db:close()
+
+            if #queue == 0 then
+                -- No buff spells found — notify and clean up
+                e.self:SetEntityVariable("buff_request_target", "")
+                e.self:SetEntityVariable("buff_request_retries", "0")
+                local grp = owner:GetGroup()
+                if grp and grp.valid then
+                    grp:GroupMessage(e.self, e.self:GetCleanName() ..
+                        " has no buff spells available.")
+                end
+                return
+            end
+
+            -- Store queue and initialize index
+            e.self:SetEntityVariable("buff_queue", json.encode(queue))
+            e.self:SetEntityVariable("buff_queue_idx", "1")
+            queue_raw = e.self:GetEntityVariable("buff_queue")
         end
+
+        -- Phase 2: Process one entry from the queue.
+        local queue = json.decode(queue_raw)
+        local idx = tonumber(e.self:GetEntityVariable("buff_queue_idx")) or 1
+
+        if idx > #queue then
+            -- Queue exhausted — clean up all state
+            e.self:SetEntityVariable("buff_request_target", "")
+            e.self:SetEntityVariable("buff_request_retries", "0")
+            e.self:SetEntityVariable("buff_queue", "")
+            e.self:SetEntityVariable("buff_queue_idx", "")
+            return
+        end
+
+        -- Pop current entry: {spell_id, target_id}
+        local entry = queue[idx]
+        local spell_id = entry[1]
+        local target_id = entry[2]
+
+        -- Re-validate target each tick (may have died or zoned since queue was built)
+        local target = eq.get_entity_list():GetMobByID(target_id)
+        if target and target.valid and target:GetHP() > 0 then
+            e.self:CastSpell(spell_id, target_id, 7)  -- slot 7 = misc spell slot
+        end
+        -- Skip invalid targets silently — advance index regardless
+
+        -- Advance index
+        e.self:SetEntityVariable("buff_queue_idx", tostring(idx + 1))
+
+        -- Re-arm timer: if this was the last entry the next tick will hit the
+        -- idx > #queue cleanup branch above and stop cleanly.
+        eq.set_timer(e.timer, 2000)
         return
     end
 end
