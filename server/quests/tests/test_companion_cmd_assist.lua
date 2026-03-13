@@ -59,14 +59,16 @@ local function make_npc(opts)
     local target = opts.target  -- current target of this NPC
 
     local npc = {
-        _id       = entity_id,
-        _hp       = hp,
-        _name     = name,
-        _char_id  = char_id,
-        _is_comp  = is_comp,
-        _messages = messages,
-        _target   = target,
-        _hate_list = {},
+        _id          = entity_id,
+        _hp          = hp,
+        _name        = name,
+        _char_id     = char_id,
+        _is_comp     = is_comp,
+        _messages    = messages,
+        _target      = target,
+        _hate_list   = {},
+        _wiped_count = 0,
+        _guard_mode  = false,
         valid = true,
     }
 
@@ -87,6 +89,10 @@ local function make_npc(opts)
     function npc:AddToHateList(mob, threat, val, a, b, c)
         self._hate_list[#self._hate_list + 1] = { mob = mob, threat = threat }
     end
+    function npc:WipeHateList()
+        self._hate_list = {}
+        self._wiped_count = self._wiped_count + 1
+    end
     function npc:Say(msg)
         messages[#messages + 1] = { channel = "say", text = msg }
     end
@@ -102,6 +108,13 @@ local function make_npc(opts)
         local st = stance or 1
         function npc:GetStance() return st end
         function npc:SetStance(v) st = v end
+    end
+
+    -- SetGuardMode: only present if opts.has_stance = true (same gate as SetStance)
+    if opts.has_stance then
+        local gm = false
+        function npc:SetGuardMode(v) gm = v; self._guard_mode = v end
+        function npc:GetGuardMode()  return gm end
     end
 
     return npc
@@ -443,6 +456,45 @@ test("cmd_target refuses when client has no target", function()
     companion.cmd_target(npc, client, "")
 
     assert_eq(npc._target, nil, "target should not be set when client has no target")
+end)
+
+-- ------------------------------------------------------------------
+-- Hate list clearing before new target (re-engage fix)
+-- Without WipeHateList() before AddToHateList(), old targets with
+-- accumulated hate stay at the top of the list. NPC::AI_Process() calls
+-- GetMobWithMostHateOnList() every tick and resets the target to the
+-- highest-hate mob — causing the companion to revert to its previous target.
+-- ------------------------------------------------------------------
+
+test("cmd_assist: wipes hate list before adding new target (fixes revert-to-previous-target)", function()
+    -- Pre-populate hate list to simulate an already-engaged companion
+    local old_enemy = make_mob({ id = 400, name = "old_enemy" })
+    local new_enemy = make_mob({ id = 401, name = "new_enemy" })
+    local npc       = make_npc({ id = 60, hp = 400, has_stance = true })
+    -- Simulate accumulated hate from previous combat
+    npc:AddToHateList(old_enemy, 9999)
+    local client = make_client({ char_id = 42, target = new_enemy })
+
+    companion.cmd_assist(npc, client, "")
+
+    -- WipeHateList must have been called to clear old hate
+    assert_true(npc._wiped_count > 0, "WipeHateList should be called to clear old hate before engaging new target")
+    -- After wipe, only new_enemy should be on the hate list
+    assert_eq(#npc._hate_list, 1, "only the new target should be on hate list after wipe")
+    assert_eq(npc._hate_list[1].mob._id, 401, "new target should be on hate list, not old target")
+end)
+
+test("cmd_assist: new target is set on hate list with old hate cleared", function()
+    -- Even after a wipe, the correct new target is engaged
+    local new_enemy = make_mob({ id = 500, name = "the_boss" })
+    local npc       = make_npc({ id = 61, hp = 400, has_stance = true })
+    local client    = make_client({ char_id = 42, target = new_enemy })
+
+    companion.cmd_assist(npc, client, "")
+
+    assert_eq(npc._target._id, 500, "companion target should be the new enemy")
+    assert_eq(#npc._hate_list, 1, "hate list should contain exactly one entry")
+    assert_eq(npc._hate_list[1].mob._id, 500, "hate list entry should be the new enemy")
 end)
 
 -- ------------------------------------------------------------------

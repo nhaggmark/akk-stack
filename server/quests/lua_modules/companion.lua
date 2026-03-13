@@ -1011,10 +1011,25 @@ function companion.cmd_tome(npc, client, args)
     -- GMMove sets position directly; the follow AI then resumes formation normally.
     -- This matches cmd_recall's approach (see above).
     npc:GMMove(client:GetX(), client:GetY(), client:GetZ(), client:GetHeading())
-    -- Clear the companion's hate list so it stops active combat engagement.
-    -- Stance is intentionally preserved — if aggressive, stays aggressive for future fights.
-    -- Mobs that have the companion on THEIR hate lists continue pursuit (same as cmd_flee design).
+    -- Disengage from combat: wipe hate list, then temporarily set passive so
+    -- Companion::Process() calls SetTarget(nullptr) on the next AI tick.
+    -- Without the passive override, Companion::Process() re-engages on the very
+    -- next tick: balanced stance re-assists the owner's auto-attack target, and
+    -- aggressive stance re-targets the owner's current target unconditionally.
+    -- Setting passive forces the C++ passive block to clear both hate AND target
+    -- pointer before the re-engage logic can fire.  The original stance is restored
+    -- by a 500ms timer (comp_tome_restore_<id>) handled in global_npc.lua:event_timer.
+    -- Mobs that have the companion on THEIR hate lists continue pursuit (same as cmd_flee).
     npc:WipeHateList()
+    -- Save current stance for restore after the passive tick clears combat state.
+    -- nil-guard: GetStance is Companion-only; default 1 (balanced) if unavailable.
+    local saved_stance = npc.GetStance and npc:GetStance() or 1
+    npc:SetEntityVariable("comp_tome_saved_stance", tostring(saved_stance))
+    -- Set passive so C++ clears target on this tick and the re-engage logic is skipped.
+    if npc.SetStance then npc:SetStance(0) end  -- nil-guard: SetStance is Companion-only; Lua_NPC cast drops it
+    -- Restore stance after 500ms (2-3 AI ticks) — long enough for SetTarget(nullptr)
+    -- to fire in the passive block, short enough that the player does not notice.
+    eq.set_timer("comp_tome_restore_" .. npc:GetID(), 500)
     -- Break guard mode: companion is now at the player's position, follow is the correct mode.
     if npc.SetGuardMode then npc:SetGuardMode(false) end  -- nil-guard: SetGuardMode is Companion-only; Lua_NPC cast drops it
     companion_modes[npc:GetID()] = "follow"
@@ -1108,6 +1123,12 @@ function companion.cmd_assist(npc, client, args)
     if npc.SetGuardMode then npc:SetGuardMode(false) end  -- nil-guard: SetGuardMode is Companion-only; Lua_NPC cast drops it
     companion_modes[npc:GetID()] = "follow"
 
+    -- Wipe existing hate before adding the new target.
+    -- Without this, old targets with accumulated hate stay at the top of the hate list
+    -- and NPC::AI_Process() resets the target back to them on the next AI tick via
+    -- GetMobWithMostHateOnList(). The new target is added with hate=1 which is almost
+    -- always lower than any actively-fought target's accumulated hate.
+    npc:WipeHateList()
     npc:SetTarget(player_target)
     npc:AddToHateList(player_target, 1, 0, false, false, false)
 

@@ -400,6 +400,25 @@ function event_timer(e)
         return
     end
 
+    -- comp_tome_restore_<entity_id>: restore stance after !tome passive override.
+    -- !tome temporarily sets passive so Companion::Process() calls SetTarget(nullptr)
+    -- on the next AI tick, breaking re-engage logic before this timer fires.
+    -- After 500ms the original stance is restored here.
+    if e.timer and e.timer:sub(1, 18) == "comp_tome_restore_" and e.self:IsCompanion() then
+        eq.stop_timer(e.timer)
+        local saved_raw = e.self:GetEntityVariable("comp_tome_saved_stance")
+        local saved_stance = tonumber(saved_raw)
+        if saved_stance and saved_stance ~= 0 then
+            -- Only restore if still passive (another command may have changed stance)
+            local cur_stance = e.self.GetStance and e.self:GetStance() or 0
+            if cur_stance == 0 then
+                if e.self.SetStance then e.self:SetStance(saved_stance) end
+            end
+        end
+        e.self:SetEntityVariable("comp_tome_saved_stance", "")
+        return
+    end
+
     -- Buff request timers are named "buff_request_<entity_id>"
     -- Fires when !buffme or !buffs sets buff_request_target entity variable.
     --
