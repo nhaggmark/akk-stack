@@ -107,6 +107,7 @@ local COMMANDS = {
     stats            = { handler = "cmd_stats",            category = "information", requires_owner = false },
     status           = { handler = "cmd_status",           category = "information", requires_owner = false },
     help             = { handler = "cmd_help",             category = "information", requires_owner = false },
+    hold             = { handler = "cmd_hold",             category = "movement" },
     target           = { handler = "cmd_target",           category = "combat" },
     assist           = { handler = "cmd_assist",           category = "combat" },
     buffme           = { handler = "cmd_buffme",           category = "buffs" },
@@ -528,6 +529,29 @@ function companion.cmd_guard(npc, client, args)
     npc:Say("I will hold here.")
 end
 
+-- Movement: hold current position and stop fighting (guard + passive combined)
+-- "Hold" state = companion_modes[id] == "guard" AND stance == 0 (passive)
+-- Breaking out: !follow breaks guard, !assist breaks passive+guard, !balanced/!aggressive breaks passive only
+function companion.cmd_hold(npc, client, args)
+    local name = npc:GetCleanName()
+    if npc:GetHP() <= 0 then
+        companion_say(npc, client, name .. " is dead and cannot hold position.")
+        return
+    end
+    -- Already holding check: guard mode AND passive stance
+    local mode = companion_modes[npc:GetID()] or "follow"
+    local stance = npc.GetStance and npc:GetStance() or 1  -- nil-guard: default 1 (balanced)
+    if mode == "guard" and stance == 0 then
+        companion_say(npc, client, name .. " is already holding position.")
+        return
+    end
+    if npc.SetGuardMode then npc:SetGuardMode(true) end  -- nil-guard: SetGuardMode is Companion-only; Lua_NPC cast drops it
+    if npc.SetStance then npc:SetStance(0) end           -- nil-guard: SetStance is Companion-only; Lua_NPC cast drops it
+    npc:WipeHateList()
+    companion_modes[npc:GetID()] = "guard"
+    companion_say(npc, client, name .. " is holding position.")
+end
+
 -- Movement: teleport companion to player location (only if far enough away)
 function companion.cmd_recall(npc, client, args)
     local cooldown_s = tonumber(eq.get_rule("Companions:RecallCooldownS")) or 30
@@ -748,33 +772,56 @@ function companion.cmd_help(npc, client, args)
 
     if topic == "" then
         companion_say(npc, client, "=== Companion Commands ===")
-        companion_say(npc, client, "Stance: !passive  !balanced  !aggressive")
-        companion_say(npc, client, "Movement: !follow  !guard  !recall  !tome  !flee")
-        companion_say(npc, client, "Combat: !target  !assist")
-        companion_say(npc, client, "Buffs: !buffme  !buffs")
-        companion_say(npc, client, "Equipment: !equipment  !equip  !unequip  !equipmentupgrade  !equipmentmissing")
-        companion_say(npc, client, "Information: !stats  !status  !help")
-        companion_say(npc, client, "Control: !dismiss")
-        companion_say(npc, client, "Type '!help <topic>' for details. Topics: stance, movement, combat, buffs, equipment, information, control")
+        companion_say(npc, client, "Buffs:")
+        companion_say(npc, client, "  !buffme            -- Refresh your buffs (casters, >10% mana)")
+        companion_say(npc, client, "  !buffs             -- Refresh party buffs (casters, >10% mana)")
+        companion_say(npc, client, "Combat:")
+        companion_say(npc, client, "  !assist            -- Attack your target (auto-switches passive to balanced)")
+        companion_say(npc, client, "  !target            -- Face/engage your current target")
+        companion_say(npc, client, "Control:")
+        companion_say(npc, client, "  !dismiss           -- Dismiss companion (re-recruit later with bonus)")
+        companion_say(npc, client, "Equipment:")
+        companion_say(npc, client, "  !equip             -- How to give items (use trade window)")
+        companion_say(npc, client, "  !equipment         -- Show all equipped items (alias: !gear)")
+        companion_say(npc, client, "  !equipmentmissing  -- List empty equipment slots")
+        companion_say(npc, client, "  !equipmentupgrade  -- Evaluate a linked item vs. equipped")
+        companion_say(npc, client, "  !unequip <slot>    -- Return item from slot (or 'all')")
+        companion_say(npc, client, "Information:")
+        companion_say(npc, client, "  !help              -- This command list (!help <topic> for details)")
+        companion_say(npc, client, "  !stats             -- Detailed combat stats")
+        companion_say(npc, client, "  !status            -- Overview: HP, mana, stance, buffs")
+        companion_say(npc, client, "Movement:")
+        companion_say(npc, client, "  !flee              -- Disengage, move to you, follow mode")
+        companion_say(npc, client, "  !follow            -- Follow you")
+        companion_say(npc, client, "  !guard             -- Hold current position (still fights)")
+        companion_say(npc, client, "  !hold              -- Hold position and stop fighting")
+        companion_say(npc, client, "  !recall            -- Teleport to you (>200 units, 30s cooldown)")
+        companion_say(npc, client, "  !tome              -- Move to you instantly")
+        companion_say(npc, client, "Stance:")
+        companion_say(npc, client, "  !aggressive        -- Actively seek and attack enemies")
+        companion_say(npc, client, "  !balanced          -- Default: fight when attacked")
+        companion_say(npc, client, "  !passive           -- Stop fighting, disengage")
+        companion_say(npc, client, "Type '!help <topic>' for details.")
 
     elseif topic == "stance" then
         companion_say(npc, client, "=== Stance Commands ===")
-        companion_say(npc, client, "  !passive    - Stop fighting, follow owner. Will not engage combat.")
-        companion_say(npc, client, "  !balanced   - Default. Fight when attacked or owner is attacked.")
         companion_say(npc, client, "  !aggressive - Actively seek and attack enemies in range.")
+        companion_say(npc, client, "  !balanced   - Default. Fight when attacked or owner is attacked.")
+        companion_say(npc, client, "  !passive    - Stop fighting, follow owner. Will not engage combat.")
 
     elseif topic == "movement" then
         companion_say(npc, client, "=== Movement Commands ===")
-        companion_say(npc, client, "  !follow  - Follow you at standard distance.")
-        companion_say(npc, client, "  !guard   - Hold current position, stop following.")
-        companion_say(npc, client, "  !recall  - Teleport to your location if stuck/far (>200 units, 30s cooldown).")
-        companion_say(npc, client, "  !tome    - Path to your location (no cooldown, within 50 units: skips).")
         companion_say(npc, client, "  !flee    - Go passive, move to you, set follow mode. Hate list retained.")
+        companion_say(npc, client, "  !follow  - Follow you at standard distance.")
+        companion_say(npc, client, "  !guard   - Hold current position, stop following. Still fights if engaged.")
+        companion_say(npc, client, "  !hold    - Hold position AND stop fighting (guard + passive combined).")
+        companion_say(npc, client, "  !recall  - Teleport to your location if stuck/far (>200 units, 30s cooldown).")
+        companion_say(npc, client, "  !tome    - Move to your location instantly (no cooldown, skips if within 50 units).")
 
     elseif topic == "combat" then
         companion_say(npc, client, "=== Combat Commands ===")
-        companion_say(npc, client, "  !target - Target your current target. In balanced/aggressive: engages.")
         companion_say(npc, client, "  !assist - Attack your target. Auto-switches passive->balanced stance.")
+        companion_say(npc, client, "  !target - Target your current target. In balanced/aggressive: engages.")
 
     elseif topic == "buffs" then
         companion_say(npc, client, "=== Buff Commands ===")
@@ -796,10 +843,10 @@ function companion.cmd_help(npc, client, args)
 
     elseif topic == "information" then
         companion_say(npc, client, "=== Information Commands ===")
-        companion_say(npc, client, "  !stats        - Detailed combat stats (any player, any companion).")
-        companion_say(npc, client, "  !status       - Overview: HP, mana, stance, target, buffs.")
         companion_say(npc, client, "  !help         - This command list.")
         companion_say(npc, client, "  !help <topic> - Details for: stance, movement, combat, buffs, equipment, information, control")
+        companion_say(npc, client, "  !stats        - Detailed combat stats (any player, any companion).")
+        companion_say(npc, client, "  !status       - Overview: HP, mana, stance, target, buffs.")
 
     elseif topic == "control" then
         companion_say(npc, client, "=== Control Commands ===")
@@ -808,6 +855,114 @@ function companion.cmd_help(npc, client, args)
     else
         companion_say(npc, client, "Unknown help topic: " .. topic)
         companion_say(npc, client, "Topics: stance, movement, combat, buffs, equipment, information, control")
+    end
+end
+
+-- Information: player-level help display (no companion target required).
+-- Called from global_player.lua:event_say() when player types !help without targeting a companion.
+-- Uses client:Message() instead of companion_say() since there is no NPC to speak.
+-- Uses the same @all deduplication lock as cmd_help so only one response fires per dispatch.
+function companion.cmd_help_standalone(client, args)
+    local topic = args:lower():gsub("^%s+", ""):gsub("%s+$", "")
+
+    -- @all !help deduplication: same lock key as cmd_help so only one response fires
+    -- whether it comes from the player-level handler or an NPC-level handler.
+    local help_lock_key = "help_lock_" .. tostring(eq.get_zone_id())
+    local lock_held = eq.get_data(help_lock_key)
+    if lock_held and lock_held ~= "" then
+        return  -- Already responded this tick (either this handler or cmd_help)
+    end
+    eq.set_data(help_lock_key, "1", "1")
+
+    local function msg(text)
+        client:Message(MT.DimGray, text)
+    end
+
+    if topic == "" then
+        msg("=== Companion Commands ===")
+        msg("Buffs:")
+        msg("  !buffme            -- Refresh your buffs (casters, >10% mana)")
+        msg("  !buffs             -- Refresh party buffs (casters, >10% mana)")
+        msg("Combat:")
+        msg("  !assist            -- Attack your target (auto-switches passive to balanced)")
+        msg("  !target            -- Face/engage your current target")
+        msg("Control:")
+        msg("  !dismiss           -- Dismiss companion (re-recruit later with bonus)")
+        msg("Equipment:")
+        msg("  !equip             -- How to give items (use trade window)")
+        msg("  !equipment         -- Show all equipped items (alias: !gear)")
+        msg("  !equipmentmissing  -- List empty equipment slots")
+        msg("  !equipmentupgrade  -- Evaluate a linked item vs. equipped")
+        msg("  !unequip <slot>    -- Return item from slot (or 'all')")
+        msg("Information:")
+        msg("  !help              -- This command list (!help <topic> for details)")
+        msg("  !stats             -- Detailed combat stats")
+        msg("  !status            -- Overview: HP, mana, stance, buffs")
+        msg("Movement:")
+        msg("  !flee              -- Disengage, move to you, follow mode")
+        msg("  !follow            -- Follow you")
+        msg("  !guard             -- Hold current position (still fights)")
+        msg("  !hold              -- Hold position and stop fighting")
+        msg("  !recall            -- Teleport to you (>200 units, 30s cooldown)")
+        msg("  !tome              -- Move to you instantly")
+        msg("Stance:")
+        msg("  !aggressive        -- Actively seek and attack enemies")
+        msg("  !balanced          -- Default: fight when attacked")
+        msg("  !passive           -- Stop fighting, disengage")
+        msg("Type '!help <topic>' for details.")
+
+    elseif topic == "stance" then
+        msg("=== Stance Commands ===")
+        msg("  !aggressive - Actively seek and attack enemies in range.")
+        msg("  !balanced   - Default. Fight when attacked or owner is attacked.")
+        msg("  !passive    - Stop fighting, follow owner. Will not engage combat.")
+
+    elseif topic == "movement" then
+        msg("=== Movement Commands ===")
+        msg("  !flee    - Go passive, move to you, set follow mode. Hate list retained.")
+        msg("  !follow  - Follow you at standard distance.")
+        msg("  !guard   - Hold current position, stop following. Still fights if engaged.")
+        msg("  !hold    - Hold position AND stop fighting (guard + passive combined).")
+        msg("  !recall  - Teleport to your location if stuck/far (>200 units, 30s cooldown).")
+        msg("  !tome    - Move to your location instantly (no cooldown, skips if within 50 units).")
+
+    elseif topic == "combat" then
+        msg("=== Combat Commands ===")
+        msg("  !assist - Attack your target. Auto-switches passive->balanced stance.")
+        msg("  !target - Target your current target. In balanced/aggressive: engages.")
+
+    elseif topic == "buffs" then
+        msg("=== Buff Commands ===")
+        msg("  !buffme - Queue buff refresh on you only. Cast on next idle window.")
+        msg("  !buffs  - Queue buff refresh on all party members.")
+        msg("  Casters only. Requires >10% mana. Replaces any pending request.")
+
+    elseif topic == "equipment" then
+        msg("=== Equipment Commands ===")
+        msg("  !equipment              - Show all equipped items.")
+        msg("  !equip                  - How to give items (use trade window).")
+        msg("  !unequip <slot>         - Return item from slot.")
+        msg("  !unequip all            - Return all equipped items.")
+        msg("  !equipmentupgrade [link] - Evaluate linked item vs equipped.")
+        msg("  !equipmentmissing       - List empty equipment slots.")
+        msg("Valid slots: primary, secondary, head, chest, arms, wrist1, wrist2,")
+        msg("  hands, legs, feet, charm, ear1, ear2, face, neck, shoulder,")
+        msg("  back, finger1, finger2, range, waist, ammo")
+
+    elseif topic == "information" then
+        msg("=== Information Commands ===")
+        msg("  !help         - This command list.")
+        msg("  !help <topic> - Details for: stance, movement, combat, buffs, equipment, information, control")
+        msg("  !stats        - Detailed combat stats (any player, any companion).")
+        msg("  !status       - Overview: HP, mana, stance, target, buffs.")
+
+    elseif topic == "control" then
+        msg("=== Control Commands ===")
+        msg("  !dismiss - Dismiss companion. Re-recruit later with +10% bonus.")
+
+    else
+        msg("Unknown help topic: " .. topic)
+        msg("Topics: stance, movement, combat, buffs, equipment, information, control")
     end
 end
 
@@ -856,6 +1011,13 @@ function companion.cmd_tome(npc, client, args)
     -- GMMove sets position directly; the follow AI then resumes formation normally.
     -- This matches cmd_recall's approach (see above).
     npc:GMMove(client:GetX(), client:GetY(), client:GetZ(), client:GetHeading())
+    -- Clear the companion's hate list so it stops active combat engagement.
+    -- Stance is intentionally preserved — if aggressive, stays aggressive for future fights.
+    -- Mobs that have the companion on THEIR hate lists continue pursuit (same as cmd_flee design).
+    npc:WipeHateList()
+    -- Break guard mode: companion is now at the player's position, follow is the correct mode.
+    if npc.SetGuardMode then npc:SetGuardMode(false) end  -- nil-guard: SetGuardMode is Companion-only; Lua_NPC cast drops it
+    companion_modes[npc:GetID()] = "follow"
     companion_say(npc, client, name .. " moves to your side.")
 end
 
@@ -941,6 +1103,10 @@ function companion.cmd_assist(npc, client, args)
         if npc.SetStance then npc:SetStance(1) end
         switched_stance = true
     end
+
+    -- Break guard mode: engaging a target requires the companion to move to it
+    if npc.SetGuardMode then npc:SetGuardMode(false) end  -- nil-guard: SetGuardMode is Companion-only; Lua_NPC cast drops it
+    companion_modes[npc:GetID()] = "follow"
 
     npc:SetTarget(player_target)
     npc:AddToHateList(player_target, 1, 0, false, false, false)
