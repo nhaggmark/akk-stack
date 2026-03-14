@@ -206,15 +206,7 @@ function companion.is_eligible_npc(npc, client)
         return false, "You cannot recruit while in combat."
     end
 
-    -- 5. Level range check (0 = disabled, no restriction)
-    local level_range = tonumber(eq.get_rule("Companions:LevelRange")) or 3
-    if level_range > 0 then
-        local player_level = client:GetLevel()
-        local npc_level = npc:GetLevel()
-        if math.abs(player_level - npc_level) > level_range then
-            return false, npc:GetName() .. " is too far from your level to recruit."
-        end
-    end
+    -- 5. Level range check removed — companions can be recruited at any level difference.
 
     -- 6. Faction check (player faction with NPC's faction must be >= MinFaction)
     local min_faction = tonumber(eq.get_rule("Companions:MinFaction")) or 3
