@@ -366,8 +366,9 @@ end
 -- Re-Recruitment Check
 -- ============================================================================
 
--- Returns the dismissed companion_data record if one exists for this NPC+player pair.
--- Returns nil if no dismissed record found.
+-- DEPRECATED: Only checks is_dismissed=1, misses dead companions (is_suspended=1).
+-- Use check_existing_companion_record() instead for all re-recruitment detection.
+-- Kept for backward compatibility — no longer called from attempt_recruitment().
 function companion.check_dismissed_record(npc_type_id, char_id)
     local db = Database()
     local stmt = db:prepare(
@@ -381,70 +382,144 @@ function companion.check_dismissed_record(npc_type_id, char_id)
     return row
 end
 
+-- Returns the existing companion_data record if one exists for this NPC+player pair
+-- where the companion is dismissed (is_dismissed=1) OR dead/suspended (is_suspended=1).
+-- This matches the C++ CreateFromNPC() query exactly — both layers must stay in sync.
+-- Returns the record table (with id, level, experience, recruited_level, stance, name,
+-- companion_type, is_dismissed, is_suspended) or nil if no existing record found.
+function companion.check_existing_companion_record(npc_type_id, char_id)
+    local db = Database()
+    local stmt = db:prepare(
+        "SELECT id, level, experience, recruited_level, stance, name, companion_type, " ..
+        "is_dismissed, is_suspended " ..
+        "FROM companion_data " ..
+        "WHERE owner_id = ? AND npc_type_id = ? AND (is_dismissed = 1 OR is_suspended = 1) LIMIT 1"
+    )
+    stmt:execute({char_id, npc_type_id})
+    local row = stmt:fetch_hash()
+    db:close()
+    return row
+end
+
+-- Returns true if the NPC+client pair passes the minimal safety checks for re-recruitment.
+-- These are a subset of is_eligible_npc() that prevent game-breaking states regardless
+-- of recruitment track. Level range, faction, exclusions, and persuasion are NOT checked.
+-- Returns: eligible (bool), reason (string if not eligible)
+function companion.is_re_recruitment_eligible(npc, client)
+    -- 1. Companion system enabled
+    if eq.get_rule("Companions:CompanionsEnabled") ~= "true" then
+        return false, "The companion system is not available on this server."
+    end
+
+    -- 2. Group capacity (client group must have < 6 members)
+    local group = client:GetGroup()
+    if group then
+        if group:GroupCount() >= 6 then
+            return false, "Your party is full. Dismiss a companion or group member first."
+        end
+    end
+
+    -- 3. Not already recruited (NPC entity variable check)
+    local is_recruited = npc:GetEntityVariable("is_recruited")
+    if is_recruited and is_recruited ~= "" and is_recruited ~= "0" then
+        return false, npc:GetName() .. " has already joined someone's party."
+    end
+
+    -- 4. Combat check — neither party can be in combat
+    if npc:IsEngaged() then
+        return false, npc:GetName() .. " is engaged in combat."
+    end
+    if client:GetAggroCount() > 0 then
+        return false, "You cannot recruit while in combat."
+    end
+
+    -- 5. NPC is not already a Companion instance
+    if npc:IsCompanion() then
+        return false, npc:GetName() .. " is already someone's companion."
+    end
+
+    return true, nil
+end
+
 -- ============================================================================
 -- Main Recruitment Flow
 -- ============================================================================
 
 -- Main entry point called from global_npc.lua when a recruitment keyword is detected.
--- Handles eligibility, roll, cooldown, and success/failure messaging.
+-- Two-track system:
+--   Track 1 (re-recruitment): existing companion_data record with is_dismissed=1 OR is_suspended=1
+--     → bypasses cooldown, level range, faction, persuasion; minimal safety checks only
+--   Track 2 (first-time): no existing record → full eligibility and persuasion roll unchanged
 function companion.attempt_recruitment(npc, client)
     local npc_type_id = npc:GetNPCTypeID()
     local char_id = client:CharacterID()
-    local npc_name = npc:GetName()
-
-    -- Check cooldown (data bucket: companion_cooldown_{npc_type_id}_{char_id})
     local cooldown_key = "companion_cooldown_" .. npc_type_id .. "_" .. char_id
-    local on_cooldown = eq.get_data(cooldown_key)
-    if on_cooldown and on_cooldown ~= "" then
-        npc:Say(npc_name .. " won't discuss joining you again so soon.")
+
+    -- RE-RECRUITMENT TRACK: check for existing companion record FIRST, before any
+    -- cooldown or eligibility check. A dead (is_suspended=1) or dismissed (is_dismissed=1)
+    -- companion bypasses all first-time-only restrictions.
+    local existing = companion.check_existing_companion_record(npc_type_id, char_id)
+
+    if existing then
+        local eligible, reason = companion.is_re_recruitment_eligible(npc, client)
+        if not eligible then
+            client:Message(15, reason)
+            return
+        end
+        -- Skip cooldown, level range, faction, NPC type exclusions, persuasion roll.
+        -- C++ CreateFromNPC() handles record detection, Load(), flag clearing, Spawn().
+        companion._on_recruitment_success(npc, client, existing)
+        -- Delete any stale cooldown from a prior failed first-time attempt.
+        eq.delete_data(cooldown_key)
         return
     end
 
-    -- Eligibility check
+    -- FIRST-TIME RECRUITMENT TRACK: unchanged behavior.
+    local on_cooldown = eq.get_data(cooldown_key)
+    if on_cooldown and on_cooldown ~= "" then
+        npc:Say(npc:GetName() .. " won't discuss joining you again so soon.")
+        return
+    end
+
+    -- Full eligibility check (all 11 checks: enabled, capacity, not-recruited, combat,
+    -- level range, faction, type exclusions, bodytype, exclusion table, froglok)
     local eligible, reason = companion.is_eligible_npc(npc, client)
     if not eligible then
         client:Message(15, reason)
         return
     end
 
-    -- Check for dismissed record (re-recruitment bonus)
-    local dismissed_record = companion.check_dismissed_record(npc_type_id, char_id)
-
-    -- Calculate recruitment roll
+    -- Calculate persuasion roll
     local base = tonumber(eq.get_rule("Companions:BaseRecruitChance")) or 50
     local faction_bonus = companion.get_faction_bonus(client, npc)
     local disposition_mod = companion.get_disposition_modifier(npc)
     local persuasion_bonus = companion.get_persuasion_bonus(client, npc)
     local level_diff = math.abs(client:GetLevel() - npc:GetLevel())
     local level_penalty = level_diff * LEVEL_DIFF_MODIFIER
-    local rerec_bonus = dismissed_record and REREC_BONUS or 0
 
-    local roll_chance = base + faction_bonus + disposition_mod + persuasion_bonus
-                        - level_penalty + rerec_bonus
+    local roll_chance = base + faction_bonus + disposition_mod + persuasion_bonus - level_penalty
     roll_chance = math.max(ROLL_MIN, math.min(ROLL_MAX, roll_chance))
 
-    -- Roll
     local roll = math.random(1, 100)
-    local success = roll <= roll_chance
-
-    if success then
-        companion._on_recruitment_success(npc, client, dismissed_record)
+    if roll <= roll_chance then
+        companion._on_recruitment_success(npc, client, nil)
     else
         companion._on_recruitment_failure(npc, client, cooldown_key)
     end
 end
 
--- Called on successful recruitment roll
-function companion._on_recruitment_success(npc, client, dismissed_record)
+-- Called on successful recruitment (both first-time and re-recruitment tracks).
+-- existing_record is the companion_data row if this is a re-recruitment (nil for first-time).
+function companion._on_recruitment_success(npc, client, existing_record)
     local npc_name = npc:GetName()
 
     -- Mark NPC as recruited to prevent duplicate recruitment attempts while C++ processes
     npc:SetEntityVariable("is_recruited", "1")
 
-    -- Create companion via C++ API (Task 17: client:CreateCompanion(npc))
-    -- Re-recruitment is handled transparently: if is_dismissed=1 record exists for this
-    -- npc_type_id + owner, C++ detects it, calls Load()+Unsuspend() to restore full state
-    -- (level, XP, equipment, buffs). No extra parameters needed for re-recruitment.
+    -- Create companion via C++ API (client:CreateCompanion(npc))
+    -- Re-recruitment is handled transparently by C++: if is_dismissed=1 OR is_suspended=1
+    -- record exists, C++ calls Load() to restore full state (level, XP, equipment, stance).
+    -- No extra parameters needed — C++ re-detects the record internally.
     local companion_entity = client:CreateCompanion(npc)
     if not companion_entity then
         client:Message(15, "Something went wrong. " .. npc_name .. " could not join you.")
@@ -453,7 +528,7 @@ function companion._on_recruitment_success(npc, client, dismissed_record)
     end
 
     -- Brief in-character acknowledgment (LLM will provide richer flavor via companion_culture.lua)
-    if not dismissed_record then
+    if not existing_record then
         npc:Say("I will join you.")
     else
         npc:Say("I remember you. Let us continue.")
