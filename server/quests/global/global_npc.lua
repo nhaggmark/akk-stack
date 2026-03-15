@@ -392,7 +392,10 @@ function event_timer(e)
     if e.timer and e.timer:sub(1, 16) == "comp_commentary_" and e.self:IsCompanion() then
         local ok, companion_commentary = pcall(require, "companion_commentary")
         if ok and companion_commentary then
-            companion_commentary.check_and_speak(e.self)
+            local ok_speak, err = pcall(companion_commentary.check_and_speak, e.self)
+            if not ok_speak then
+                eq.log(1, "companion commentary error: " .. tostring(err))
+            end
         end
         -- Restart the timer for the next check cycle
         local interval_ms = (llm_config.companion_commentary_min_interval_s or 600) * 1000
@@ -410,9 +413,9 @@ function event_timer(e)
         local saved_stance = tonumber(saved_raw)
         if saved_stance and saved_stance ~= 0 then
             -- Only restore if still passive (another command may have changed stance)
-            local cur_stance = e.self.GetStance and e.self:GetStance() or 0
+            local cur_stance = e.self:GetStance()
             if cur_stance == 0 then
-                if e.self.SetStance then e.self:SetStance(saved_stance) end
+                e.self:SetStance(saved_stance)
             end
         end
         e.self:SetEntityVariable("comp_tome_saved_stance", "")
@@ -604,7 +607,7 @@ function event_level_up(e)
     if not e.self:IsCompanion() then return end
 
     local owner_char_id = e.self:GetOwnerCharacterID()
-    if owner_char_id == 0 then return end
+    if not owner_char_id or owner_char_id == 0 then return end
     local client = eq.get_entity_list():GetClientByCharID(owner_char_id)
     if not client or not client.valid then return end
 

@@ -251,6 +251,7 @@ function companion.is_eligible_npc(npc, client)
     -- 10. Exclusion table check
     local npc_type_id = npc:GetNPCTypeID()
     local db = Database()
+    if not db then return false, "Database unavailable." end
     local stmt = db:prepare(
         "SELECT npc_type_id FROM companion_exclusions WHERE npc_type_id = ? LIMIT 1"
     )
@@ -280,6 +281,7 @@ end
 function companion.get_persuasion_bonus(client, npc)
     local npc_race = npc:GetRace()
     local db = Database()
+    if not db then return 0 end
     local stmt = db:prepare(
         "SELECT primary_stat, secondary_type, secondary_stat " ..
         "FROM companion_culture_persuasion WHERE race_id = ? LIMIT 1"
@@ -368,6 +370,7 @@ end
 -- Kept for backward compatibility — no longer called from attempt_recruitment().
 function companion.check_dismissed_record(npc_type_id, char_id)
     local db = Database()
+    if not db then return nil end
     local stmt = db:prepare(
         "SELECT id, level, experience, recruited_level, stance, name, companion_type " ..
         "FROM companion_data " ..
@@ -386,6 +389,7 @@ end
 -- companion_type, is_dismissed, is_suspended) or nil if no existing record found.
 function companion.check_existing_companion_record(npc_type_id, char_id)
     local db = Database()
+    if not db then return nil end
     local stmt = db:prepare(
         "SELECT id, level, experience, recruited_level, stance, name, companion_type, " ..
         "is_dismissed, is_suspended " ..

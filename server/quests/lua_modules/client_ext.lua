@@ -69,7 +69,10 @@ function Client:GetFaction(npc)
 	-- a Lua_NPC wrapper that luabind can match to the overload.
 	local npc_arg = npc
 	if npc.IsCompanion and npc:IsCompanion() then
-		npc_arg = npc:CastToNPC()
+		local ok_cast, cast_result = pcall(function() return npc:CastToNPC() end)
+		if ok_cast and cast_result then
+			npc_arg = cast_result
+		end
 	end
 	return self:GetFactionLevel(self:CharacterID(), npc:GetID(), self:GetRace(), self:GetClass(), self:GetDeity(), primary_faction, npc_arg)
 end

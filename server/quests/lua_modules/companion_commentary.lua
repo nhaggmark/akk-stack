@@ -131,7 +131,7 @@ function companion_commentary.check_and_speak(npc)
 
     -- Find the companion's owner client
     local owner_char_id = npc:GetOwnerCharacterID()
-    if owner_char_id == 0 then return end
+    if not owner_char_id or owner_char_id == 0 then return end
 
     local client = eq.get_entity_list():GetClientByCharID(owner_char_id)
     if not client or not client.valid then return end
