@@ -12,7 +12,7 @@
 --                                          exists, C++ calls Load()+Unsuspend() automatically.
 --   client:HasActiveCompanion(npc_type_id) - Returns bool
 --   client:GetCompanionByNPCTypeID(npc_type_id) - Returns Companion or nil
---   companion:Dismiss(voluntary_bool)    - true=voluntary (earns re-recruit bonus), false=forced
+--   companion:Dismiss(voluntary_bool)    - true=voluntary (preserves record for re-recruitment), false=forced
 --   companion:SetStance(stance_int)      - 0=passive, 1=balanced, 2=aggressive
 --   companion:SoulWipe()                 - C++ cascade delete (Lua calls ChromaDB clear first)
 --   npc:IsCompanion()                    - Returns true if this NPC is a Companion instance
@@ -69,9 +69,6 @@ local LEVEL_DIFF_MODIFIER = 5
 -- Recruitment roll clamp [min, max] percent
 local ROLL_MIN = 5
 local ROLL_MAX = 95
-
--- Re-recruitment bonus (applied when is_dismissed=1 record exists)
-local REREC_BONUS = 10
 
 -- Combat role display names (maps Companion::GetCombatRole() uint8 return to display string)
 -- Values mirror the CompanionCombatRole enum in companion.h:
@@ -854,7 +851,7 @@ function companion.cmd_help(npc, client, args)
         companion_say(npc, client, "  !assist            -- Attack your target (auto-switches passive to balanced)")
         companion_say(npc, client, "  !target            -- Face/engage your current target")
         companion_say(npc, client, "Control:")
-        companion_say(npc, client, "  !dismiss           -- Dismiss companion (re-recruit later with bonus)")
+        companion_say(npc, client, "  !dismiss           -- Dismiss companion (can always re-recruit later)")
         companion_say(npc, client, "Equipment:")
         companion_say(npc, client, "  !equip             -- How to give items (use trade window)")
         companion_say(npc, client, "  !equipment         -- Show all equipped items (alias: !gear)")
@@ -925,7 +922,7 @@ function companion.cmd_help(npc, client, args)
 
     elseif topic == "control" then
         companion_say(npc, client, "=== Control Commands ===")
-        companion_say(npc, client, "  !dismiss - Dismiss companion. Re-recruit later with +10% bonus.")
+        companion_say(npc, client, "  !dismiss - Dismiss companion. Previously recruited companions can always be re-recruited.")
 
     else
         companion_say(npc, client, "Unknown help topic: " .. topic)
@@ -962,7 +959,7 @@ function companion.cmd_help_standalone(client, args)
         msg("  !assist            -- Attack your target (auto-switches passive to balanced)")
         msg("  !target            -- Face/engage your current target")
         msg("Control:")
-        msg("  !dismiss           -- Dismiss companion (re-recruit later with bonus)")
+        msg("  !dismiss           -- Dismiss companion (can always re-recruit later)")
         msg("Equipment:")
         msg("  !equip             -- How to give items (use trade window)")
         msg("  !equipment         -- Show all equipped items (alias: !gear)")
@@ -1033,7 +1030,7 @@ function companion.cmd_help_standalone(client, args)
 
     elseif topic == "control" then
         msg("=== Control Commands ===")
-        msg("  !dismiss - Dismiss companion. Re-recruit later with +10% bonus.")
+        msg("  !dismiss - Dismiss companion. Previously recruited companions can always be re-recruited.")
 
     else
         msg("Unknown help topic: " .. topic)
@@ -1427,7 +1424,7 @@ function companion.cmd_equipmentupgrade(npc, client, args)
     end
 end
 
--- Control: dismiss companion voluntarily (preserves re-recruitment record and +10% bonus)
+-- Control: dismiss companion voluntarily (preserves re-recruitment record; always re-recruitable)
 function companion.cmd_dismiss(npc, client, args)
     npc:Say("Farewell.")
     npc:Dismiss(true)
@@ -1440,8 +1437,9 @@ end
 -- Re-recruitment state restore is handled transparently inside client:CreateCompanion(npc).
 -- When C++ detects an is_dismissed=1 record for this npc_type_id + owner_id, it calls
 -- Load() + Unsuspend() to restore full companion state (level, XP, equipment, stance, buffs).
--- No separate Lua call is needed. check_dismissed_record() is used only to apply the
--- +10% roll bonus in attempt_recruitment() before calling CreateCompanion.
+-- Re-recruitment is unconditional (always succeeds) — no roll is applied.
+-- check_existing_companion_record() is used only to detect the re-recruitment track in
+-- attempt_recruitment() so it bypasses the first-time persuasion roll entirely.
 
 -- ============================================================================
 -- Soul Wipe (Task 24)

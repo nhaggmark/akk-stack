@@ -156,7 +156,14 @@ function companion_commentary.check_and_speak(npc)
     end)
 
     if ok_gen and response then
-        npc:Say(response)
+        -- Route through group chat to match all other companion dialogue.
+        -- Falls back to npc:Say() only if the owner has no group.
+        local group = client:GetGroup()
+        if group and group.valid then
+            group:GroupMessage(npc, response)
+        else
+            npc:Say(response)
+        end
         -- Update last comment timestamp
         npc:SetEntityVariable("comp_last_comment_time", tostring(now))
         -- Update last zone to current (consumed the zone-change trigger)

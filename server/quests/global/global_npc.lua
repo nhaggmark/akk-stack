@@ -597,6 +597,56 @@ function event_timer(e)
     end
 end
 
+-- Level-up handler: fire personalized LLM dialogue when a companion gains a level.
+-- Companions are NPCs, so NPC event_level_up fires (not player event_level_up).
+-- Uses companion_culture "level_up" event type for appropriate framing.
+function event_level_up(e)
+    if not e.self:IsCompanion() then return end
+
+    local owner_char_id = e.self:GetOwnerCharacterID()
+    if owner_char_id == 0 then return end
+    local client = eq.get_entity_list():GetClientByCharID(owner_char_id)
+    if not client or not client.valid then return end
+
+    local fake_e = { self = e.self, other = client }
+    local ok_ctx, context = pcall(function()
+        return llm_bridge.build_context(fake_e)
+    end)
+    if not ok_ctx or not context then return end
+
+    -- Override type_framing with level-up event-specific guidance.
+    -- companion_culture.get_companion_context() returns the assembled system-prompt
+    -- text (type framing + evolution + event prompt) for the "level_up" event.
+    local ok_cc, culture_lib = pcall(require, "companion_culture")
+    if ok_cc and culture_lib then
+        local ok_ctx2, event_text = pcall(function()
+            return culture_lib.get_companion_context(e.self, client, "level_up", {
+                companion_type = context.companion_type or 0,
+                time_active    = context.time_active_seconds or 0,
+            })
+        end)
+        if ok_ctx2 and event_text then
+            context.type_framing = event_text
+        end
+    end
+
+    -- Mark as unprompted so sidecar keeps it to 1 sentence
+    context.unprompted = true
+
+    local ok_gen, response = pcall(function()
+        return llm_bridge.generate_response(context, "[level_up]")
+    end)
+
+    if ok_gen and response then
+        local group = client:GetGroup()
+        if group and group.valid then
+            group:GroupMessage(e.self, response)
+        else
+            e.self:Say(response)
+        end
+    end
+end
+
 -- Zone-wide death tracking for companion recent-kill context.
 -- When any NPC dies in the zone, update all companion entities with the kill.
 -- Tracks the last 5 killed NPC names in "comp_recent_kills" entity variable.
