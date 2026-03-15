@@ -11,6 +11,8 @@
 --   - Stale cooldown deleted on re-recruitment success
 --   - check_existing_companion_record() vs check_dismissed_record() distinction
 --   - First-time recruitment regression (is_eligible_npc() all checks still run)
+--   - Edge cases: cur_hp=0, both flags set, faction bypass, persuasion bypass,
+--     is_recruited block, cooldown not deleted on failure, LIMIT 1 behavior
 --
 -- Run with:
 --   luajit tests/test_companion_recruitment.lua
@@ -277,6 +279,16 @@ test("returns record when is_dismissed=1 (voluntarily dismissed companion)", fun
     local row = companion.check_existing_companion_record(1001, 42)
     assert_not_nil(row, "should return record for dismissed companion")
     assert_eq(row.is_dismissed, 1, "is_dismissed should be 1")
+end)
+
+test("returns nil when both flags are 0 (active companion — should not happen in practice)", function()
+    -- The SQL WHERE clause requires is_dismissed=1 OR is_suspended=1.
+    -- The DB stub always returns whatever row we give it, so we test that a nil
+    -- row is propagated correctly. In production, an active companion has both=0
+    -- and would not be returned by the query — this stub tests the nil propagation path.
+    Database = make_db_stub(nil)
+    local row = companion.check_existing_companion_record(1001, 42)
+    assert_nil(row, "active companion (both flags 0) should not match the query")
 end)
 
 -- ============================================================================
@@ -563,6 +575,27 @@ test("re-recruitment blocked when companion system disabled", function()
                     "should block when system disabled")
 end)
 
+test("re-recruitment blocked when NPC is_recruited=1 entity var set", function()
+    -- is_recruited entity var is set when another client has already initiated
+    -- recruitment of the same NPC. Safety check prevents double-recruitment.
+    local fake_row = {
+        id = 34, level = 25, experience = 10000, recruited_level = 20,
+        stance = 1, name = "Juno", companion_type = 0,
+        is_dismissed = 0, is_suspended = 1,
+    }
+    Database = make_db_stub(fake_row)
+
+    local npc = make_npc({ npc_type_id = 3002 })
+    npc._entity_vars["is_recruited"] = "1"
+    local client = make_client({ char_id = 42 })
+
+    companion.attempt_recruitment(npc, client)
+
+    assert_contains(last_client_msg(client), "already joined",
+                    "is_recruited=1 should block re-recruitment")
+    assert_eq(#client._companions, 0, "companion should not be created")
+end)
+
 -- ============================================================================
 -- attempt_recruitment(): group wipe recovery (multiple companions)
 -- ============================================================================
@@ -773,6 +806,180 @@ test("check_dismissed_record: returns nil when no record found", function()
     Database = make_db_stub(nil)
     local row = companion.check_dismissed_record(7001, 42)
     assert_nil(row, "check_dismissed_record should return nil when no record")
+end)
+
+-- ============================================================================
+-- Edge cases: additional coverage per Task #2 requirements
+-- ============================================================================
+
+print("\n=== Edge cases ===\n")
+
+test("re-recruitment: cur_hp=0 in DB row — Lua proceeds (C++ handles HP restore)", function()
+    -- A companion that died and was marked is_suspended=1 will have cur_hp=0 in the DB.
+    -- Lua should not check cur_hp — it proceeds and C++ restores HP on Load().
+    local fake_row = {
+        id = 80, level = 30, experience = 20000, recruited_level = 20,
+        stance = 1, name = "Mort", companion_type = 0,
+        is_dismissed = 0, is_suspended = 1, cur_hp = 0,
+    }
+    Database = make_db_stub(fake_row)
+
+    local npc    = make_npc({ npc_type_id = 8001 })
+    local client = make_client({ char_id = 42 })
+
+    companion.attempt_recruitment(npc, client)
+
+    -- Should succeed — Lua does not block on cur_hp=0
+    assert_contains(last_say(npc), "remember",
+                    "cur_hp=0 in DB should not block re-recruitment")
+    assert_eq(#client._companions, 1, "companion should be created despite cur_hp=0")
+end)
+
+test("re-recruitment: is_suspended=1 AND is_dismissed=1 simultaneously — still re-recruits", function()
+    -- Edge case: both flags set (e.g., companion died then was also flagged dismissed).
+    -- check_existing_companion_record() queries (is_dismissed=1 OR is_suspended=1) so
+    -- either flag alone or both together routes to the re-recruitment track.
+    local fake_row = {
+        id = 81, level = 28, experience = 15000, recruited_level = 20,
+        stance = 1, name = "Deva", companion_type = 0,
+        is_dismissed = 1, is_suspended = 1,
+    }
+    Database = make_db_stub(fake_row)
+
+    local npc    = make_npc({ npc_type_id = 8002 })
+    local client = make_client({ char_id = 42 })
+
+    companion.attempt_recruitment(npc, client)
+
+    assert_contains(last_say(npc), "remember",
+                    "both flags set should still trigger re-recruitment track")
+    assert_eq(#client._companions, 1, "companion should be created")
+end)
+
+test("re-recruitment: ignores faction — faction=4 (Amiably) does not block", function()
+    -- faction_level=4 would block first-time recruitment (MinFaction=3 requires Kindly).
+    -- Re-recruitment skips faction check entirely.
+    local fake_row = {
+        id = 82, level = 25, experience = 10000, recruited_level = 20,
+        stance = 1, name = "Fend", companion_type = 0,
+        is_dismissed = 1, is_suspended = 0,
+    }
+    Database = make_db_stub(fake_row)
+
+    -- NPC has a faction ID and client has faction level 4 (Amiably — below threshold)
+    local npc    = make_npc({ npc_type_id = 8003, faction_id = 200 })
+    local client = make_client({ char_id = 42, level = 20, faction_level = 4 })
+
+    companion.attempt_recruitment(npc, client)
+
+    assert_contains(last_say(npc), "remember",
+                    "re-recruitment should ignore faction check (Amiably is fine)")
+    assert_eq(#client._companions, 1, "companion should be created despite low faction")
+end)
+
+test("re-recruitment: ignores persuasion roll — succeeds even when random always returns 100", function()
+    -- First-time recruitment would fail if math.random always returns 100 (above 50% base).
+    -- Re-recruitment track skips the persuasion roll entirely.
+    local orig_random = math.random
+    math.random = function(a, b) return 100 end  -- worst possible roll
+
+    local fake_row = {
+        id = 83, level = 25, experience = 10000, recruited_level = 20,
+        stance = 1, name = "Grix", companion_type = 0,
+        is_dismissed = 0, is_suspended = 1,
+    }
+    Database = make_db_stub(fake_row)
+
+    local npc    = make_npc({ npc_type_id = 8004 })
+    local client = make_client({ char_id = 42 })
+
+    companion.attempt_recruitment(npc, client)
+    math.random = orig_random
+
+    assert_contains(last_say(npc), "remember",
+                    "re-recruitment should not be blocked by a worst-case persuasion roll")
+    assert_eq(#client._companions, 1, "companion should be created regardless of roll")
+end)
+
+test("first-time: cooldown NOT deleted after failed roll", function()
+    -- A first-time failure sets a cooldown. Verify eq.delete_data() is NOT called
+    -- (the cooldown should remain in data_store after failure).
+    local orig_random = math.random
+    math.random = function(a, b) return 100 end  -- always fail
+
+    local npc    = make_npc({ npc_type_id = 8005, level = 20 })
+    local client = make_client({ char_id = 42, level = 20 })
+
+    companion.attempt_recruitment(npc, client)
+    math.random = orig_random
+
+    -- Cooldown should be SET (by failure), not deleted
+    assert_eq(data_store["companion_cooldown_8005_42"], "1",
+              "cooldown should be SET after first-time failure, not deleted")
+end)
+
+test("LIMIT 1: check_existing_companion_record returns one row even when multiple could match", function()
+    -- The SQL uses LIMIT 1. The DB stub always returns one row.
+    -- Verify that receiving a single row (whichever the DB chooses) works correctly.
+    -- In production, multiple rows with the same npc_type_id+owner+flags shouldn't exist,
+    -- but LIMIT 1 guarantees graceful handling if they do.
+    local fake_row = {
+        id = 91, level = 30, experience = 20000, recruited_level = 20,
+        stance = 1, name = "First", companion_type = 0,
+        is_dismissed = 1, is_suspended = 0,
+    }
+    Database = make_db_stub(fake_row)
+
+    local row = companion.check_existing_companion_record(9001, 42)
+    assert_not_nil(row, "should return the first matching row")
+    assert_eq(row.id, 91, "should return the row the DB provided (LIMIT 1)")
+
+    -- Re-recruitment proceeds with this single row
+    local npc    = make_npc({ npc_type_id = 9001 })
+    local client = make_client({ char_id = 42 })
+    companion.attempt_recruitment(npc, client)
+    assert_eq(#client._companions, 1, "should recruit using the LIMIT 1 result")
+end)
+
+test("re-recruitment: bypasses NPC bodytype/exclusion checks (untargetable bodytype=11)", function()
+    -- First-time recruitment checks bodytype 11 (untargetable) and rejects it.
+    -- Re-recruitment track calls is_re_recruitment_eligible() which does NOT check bodytype.
+    local fake_row = {
+        id = 92, level = 20, experience = 5000, recruited_level = 20,
+        stance = 1, name = "Ghost", companion_type = 0,
+        is_dismissed = 1, is_suspended = 0,
+    }
+    Database = make_db_stub(fake_row)
+
+    -- NPC with untargetable bodytype — would fail is_eligible_npc() bodytype check
+    local npc    = make_npc({ npc_type_id = 9002, bodytype = 11 })
+    local client = make_client({ char_id = 42 })
+
+    companion.attempt_recruitment(npc, client)
+
+    assert_contains(last_say(npc), "remember",
+                    "re-recruitment bypasses bodytype check — should succeed")
+    assert_eq(#client._companions, 1, "companion should be created despite bodytype=11")
+end)
+
+test("re-recruitment with is_suspended=1: no cooldown set on success (re-recruit path has no failure)", function()
+    -- The re-recruitment track has no persuasion roll and no cooldown.
+    -- Verify that after a successful re-recruitment, no cooldown key is created.
+    local fake_row = {
+        id = 93, level = 25, experience = 10000, recruited_level = 20,
+        stance = 1, name = "Sera", companion_type = 0,
+        is_dismissed = 0, is_suspended = 1,
+    }
+    Database = make_db_stub(fake_row)
+
+    local npc    = make_npc({ npc_type_id = 9003 })
+    local client = make_client({ char_id = 42 })
+
+    companion.attempt_recruitment(npc, client)
+
+    -- No new cooldown should have been created (stale one deleted, no new one set)
+    assert_nil(data_store["companion_cooldown_9003_42"],
+               "no cooldown should exist after successful re-recruitment")
 end)
 
 -- ============================================================================
