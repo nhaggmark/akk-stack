@@ -255,6 +255,25 @@ test-llm: ##@npc-llm Run automated NPC conversation test suite
 	$(DOCKER) exec npc-llm /usr/bin/python3.11 /app/tests/test_suite.py
 
 #----------------------
+# companion tests
+#----------------------
+
+LUAJIT=/home/eqemu/code/build/vcpkg_installed/x64-linux/tools/luajit/luajit
+TEST_COMPANION_DIR=/home/eqemu/server/quests/tests
+TEST_COMPANION_MAIN=$(TEST_COMPANION_DIR)/test_companion_recruitment.lua
+TEST_COMPANION_REREC=$(TEST_COMPANION_DIR)/test_companion_rerec_edge_cases.lua
+
+test-companion: ##@companion Run Lua TDD test suite for companion recruitment via Docker exec
+	@MISSING=0; \
+	$(DOCKER) exec -T eqemu-server test -f $(TEST_COMPANION_MAIN) 2>/dev/null || { echo "SKIP: $(TEST_COMPANION_MAIN) not found — lua-expert has not created it yet"; MISSING=1; }; \
+	$(DOCKER) exec -T eqemu-server test -f $(TEST_COMPANION_REREC) 2>/dev/null || { echo "SKIP: $(TEST_COMPANION_REREC) not found — lua-expert has not created it yet"; MISSING=1; }; \
+	if [ "$$MISSING" = "1" ]; then echo "No test files found — nothing to run"; exit 1; fi; \
+	echo "--- test_companion_recruitment.lua ---"; \
+	$(DOCKER) exec -T eqemu-server $(LUAJIT) $(TEST_COMPANION_MAIN); \
+	echo "--- test_companion_rerec_edge_cases.lua ---"; \
+	$(DOCKER) exec -T eqemu-server $(LUAJIT) $(TEST_COMPANION_REREC)
+
+#----------------------
 # env
 #----------------------
 
