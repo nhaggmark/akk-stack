@@ -12,7 +12,7 @@
 --                                          exists, C++ calls Load()+Unsuspend() automatically.
 --   client:HasActiveCompanion(npc_type_id) - Returns bool
 --   client:GetCompanionByNPCTypeID(npc_type_id) - Returns Companion or nil
---   companion:Dismiss(voluntary_bool)    - true=voluntary (preserves record for re-recruitment), false=forced
+--   companion:Dismiss(permanent)         - false=voluntary dismiss (preserves record; is_dismissed+is_suspended set, row kept), true=permanent SoulWipe (deletes companion_data row)
 --   companion:SetStance(stance_int)      - 0=passive, 1=balanced, 2=aggressive
 --   companion:SoulWipe()                 - C++ cascade delete (Lua calls ChromaDB clear first)
 --   npc:IsCompanion()                    - Returns true if this NPC is a Companion instance
@@ -204,7 +204,7 @@ function companion.is_eligible_npc(npc, client)
     end
 
     -- 5. Level range check (0 = disabled, no restriction)
-    local level_range = tonumber(eq.get_rule("Companions:LevelRange")) or 3
+    local level_range = tonumber(eq.get_rule("Companions:LevelRange")) or 50
     if level_range > 0 then
         local player_level = client:GetLevel()
         local npc_level = npc:GetLevel()
@@ -394,7 +394,8 @@ function companion.check_existing_companion_record(npc_type_id, char_id)
         "SELECT id, level, experience, recruited_level, stance, name, companion_type, " ..
         "is_dismissed, is_suspended " ..
         "FROM companion_data " ..
-        "WHERE owner_id = ? AND npc_type_id = ? AND (is_dismissed = 1 OR is_suspended = 1) LIMIT 1"
+        "WHERE owner_id = ? AND npc_type_id = ? AND (is_dismissed = 1 OR is_suspended = 1) " ..
+        "ORDER BY level DESC, experience DESC, id DESC LIMIT 1"
     )
     stmt:execute({char_id, npc_type_id})
     local row = stmt:fetch_hash()
@@ -1431,7 +1432,7 @@ end
 -- Control: dismiss companion voluntarily (preserves re-recruitment record; always re-recruitable)
 function companion.cmd_dismiss(npc, client, args)
     npc:Say("Farewell.")
-    npc:Dismiss(true)
+    npc:Dismiss(false)
 end
 
 -- ============================================================================
