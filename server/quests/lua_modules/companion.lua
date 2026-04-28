@@ -171,6 +171,21 @@ end
 -- Eligibility Checks
 -- ============================================================================
 
+-- Returns the companion_exclusions row if npc_type_id is excluded, nil if not excluded,
+-- or false if the database is unavailable. Shared by is_eligible_npc (Track 2) and
+-- is_re_recruitment_eligible (Track 1 Q7 guard).
+function companion._lookup_exclusion(npc_type_id)
+    local db = Database()
+    if not db then return false end
+    local stmt = db:prepare(
+        "SELECT npc_type_id FROM companion_exclusions WHERE npc_type_id = ? LIMIT 1"
+    )
+    stmt:execute({npc_type_id})
+    local excl_row = stmt:fetch_hash()
+    db:close()
+    return excl_row
+end
+
 -- Returns true if the NPC passes all eligibility checks for recruitment.
 -- Short-circuits in the documented order from the architecture spec.
 -- Returns: eligible (bool), reason (string if not eligible)
@@ -250,14 +265,10 @@ function companion.is_eligible_npc(npc, client)
 
     -- 10. Exclusion table check
     local npc_type_id = npc:GetNPCTypeID()
-    local db = Database()
-    if not db then return false, "Database unavailable." end
-    local stmt = db:prepare(
-        "SELECT npc_type_id FROM companion_exclusions WHERE npc_type_id = ? LIMIT 1"
-    )
-    stmt:execute({npc_type_id})
-    local excl_row = stmt:fetch_hash()
-    db:close()
+    local excl_row = companion._lookup_exclusion(npc_type_id)
+    if excl_row == false then
+        return false, "Database unavailable."
+    end
     if excl_row then
         return false, npc:GetName() .. " cannot be recruited."
     end
@@ -382,22 +393,27 @@ function companion.check_dismissed_record(npc_type_id, char_id)
     return row
 end
 
--- Returns the existing companion_data record if one exists for this NPC+player pair
+-- Returns the existing companion_data record if one exists for this player+clean_name pair
 -- where the companion is dismissed (is_dismissed=1) OR dead/suspended (is_suspended=1).
--- This matches the C++ CreateFromNPC() query exactly — both layers must stay in sync.
+-- Looks up by stored clean name rather than npc_type_id so that multi-variant NPCs
+-- (e.g. 'Lydl the Great' with three spawn variants in freporte) are correctly recognised
+-- as previously-recruited regardless of which variant the spawngroup picks this time.
+-- Matches the C++ CreateFromNPC() name-based query — both layers must stay in sync.
 -- Returns the record table (with id, level, experience, recruited_level, stance, name,
--- companion_type, is_dismissed, is_suspended) or nil if no existing record found.
-function companion.check_existing_companion_record(npc_type_id, char_id)
+-- companion_type, is_dismissed, is_suspended, npc_type_id) or nil if no record found.
+-- clean_name: npc:GetCleanName() — the space-separated cleaned NPC name.
+function companion.check_existing_companion_record(clean_name, char_id)
     local db = Database()
     if not db then return nil end
     local stmt = db:prepare(
         "SELECT id, level, experience, recruited_level, stance, name, companion_type, " ..
-        "is_dismissed, is_suspended " ..
+        "is_dismissed, is_suspended, npc_type_id " ..
         "FROM companion_data " ..
-        "WHERE owner_id = ? AND npc_type_id = ? AND (is_dismissed = 1 OR is_suspended = 1) " ..
+        "WHERE owner_id = ? AND name = ? AND name != '' " ..
+        "AND (is_dismissed = 1 OR is_suspended = 1) " ..
         "ORDER BY level DESC, experience DESC, id DESC LIMIT 1"
     )
-    stmt:execute({char_id, npc_type_id})
+    stmt:execute({char_id, clean_name})
     local row = stmt:fetch_hash()
     db:close()
     return row
@@ -440,6 +456,17 @@ function companion.is_re_recruitment_eligible(npc, client)
         return false, npc:GetName() .. " is already someone's companion."
     end
 
+    -- 6. Exclusion check on the TARGET NPC (v2 Q7 mitigation): prevents name-match
+    --    Track 1 from bypassing companion_exclusions when an excluded NPC shares a
+    --    name with a non-excluded sibling the player previously recruited.
+    local excl_row = companion._lookup_exclusion(npc:GetNPCTypeID())
+    if excl_row == false then
+        return false, "Database unavailable."
+    end
+    if excl_row then
+        return false, npc:GetName() .. " cannot be recruited."
+    end
+
     return true, nil
 end
 
@@ -460,9 +487,19 @@ function companion.attempt_recruitment(npc, client)
     -- RE-RECRUITMENT TRACK: check for existing companion record FIRST, before any
     -- cooldown or eligibility check. A dead (is_suspended=1) or dismissed (is_dismissed=1)
     -- companion bypasses all first-time-only restrictions.
-    local existing = companion.check_existing_companion_record(npc_type_id, char_id)
+    local existing = companion.check_existing_companion_record(npc:GetCleanName(), char_id)
 
     if existing then
+        -- Diagnostic: surface stale-name cases (admin renamed npc_types after recruit).
+        if existing.npc_type_id and tonumber(existing.npc_type_id) ~= npc_type_id then
+            print(string.format(
+                "[companion] Track 1 name-match: stored npc_type_id=%s differs from " ..
+                "targeted spawn npc_type_id=%s (name='%s', owner_id=%s) — " ..
+                "using stored row; stale-name if admin renamed npc_types after recruit",
+                tostring(existing.npc_type_id), tostring(npc_type_id),
+                tostring(npc:GetCleanName()), tostring(char_id)
+            ))
+        end
         local eligible, reason = companion.is_re_recruitment_eligible(npc, client)
         if not eligible then
             client:Message(15, reason)

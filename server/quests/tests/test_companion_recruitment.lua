@@ -143,13 +143,19 @@ end
 -- ============================================================================
 -- Returns a Database() constructor that yields the given row from fetch_hash().
 -- Pass nil to simulate "no record found".
+-- companion_exclusions queries always return nil (no exclusions) so existing tests
+-- are unaffected by the Q7 exclusion check added in V2.
 local function make_db_stub(row)
     return function()
         return {
             prepare = function(self, sql)
+                local is_excl = sql:find("companion_exclusions", 1, true) ~= nil
                 return {
-                    execute   = function(self, params) end,
-                    fetch_hash = function(self) return row end,
+                    execute    = function(self, params) end,
+                    fetch_hash = function(self)
+                        if is_excl then return nil end  -- no exclusion by default
+                        return row
+                    end,
                 }
             end,
             close = function(self) end,
