@@ -1120,6 +1120,137 @@ test("TDD-5: check_existing_companion_record SQL includes ORDER BY for determini
 end)
 
 -- ============================================================================
+-- V2 TDD: Multi-variant name-match + Q7 exclusion bypass guard
+-- These 3 tests FAIL against the current code (npc_type_id-based lookup) and
+-- must PASS after the V2 fix (name-based lookup + Q7 exclusion step).
+-- Written before the fix per PRD AC-9.
+-- ============================================================================
+
+print("\n=== V2 TDD: Multi-variant name-match + Q7 exclusion guard ===\n")
+
+-- make_db_stub_multi: dispatches on SQL content to support two queries in one test.
+--   name_row     : row returned when SQL contains "name = ?"  (companion_data lookup)
+--   exclusion_row: row returned when SQL contains "companion_exclusions"
+-- Returns nil for all other SQL (e.g. a legacy npc_type_id query whose params don't match).
+local function make_db_stub_multi(name_row, exclusion_row)
+    return function()
+        return {
+            prepare = function(self, sql)
+                local is_name_query    = sql:find("name = ?",         1, true) ~= nil
+                local is_excl_query    = sql:find("companion_exclusions", 1, true) ~= nil
+                return {
+                    execute    = function(self, params) end,
+                    fetch_hash = function(self)
+                        if is_excl_query then return exclusion_row end
+                        if is_name_query then return name_row end
+                        return nil
+                    end,
+                }
+            end,
+            close = function(self) end,
+        }
+    end
+end
+
+test("V2-TDD-1: multi-variant re-recruit — name match fires Track 1 when npc_type_id differs from stored row", function()
+    -- Stored row has npc_type_id=10162 but name='Lydl the Great'.
+    -- Targeted spawn is npc_type_id=10178 with same clean name.
+    -- Current code (npc_type_id-based) returns nil → Track 2 → level rejection.
+    -- After V2 fix (name-based) the row is found → Track 1 → "I remember you".
+    local stored_row = {
+        id = 10, level = 53, experience = 1500000, recruited_level = 20,
+        stance = 1, name = "Lydl the Great", companion_type = 0,
+        is_dismissed = 0, is_suspended = 1, npc_type_id = 10162,
+    }
+    -- Stub: returns stored_row for name query; no exclusion row
+    Database = make_db_stub_multi(stored_row, nil)
+
+    -- Player level 35, NPC level 2 — would fail level-range on Track 2 (first-time)
+    local npc    = make_npc({ npc_type_id = 10178, name = "Lydl the Great", level = 2 })
+    local client = make_client({ char_id = 6, level = 35 })
+
+    companion.attempt_recruitment(npc, client)
+
+    assert_contains(last_say(npc), "remember",
+        "V2: name-match should fire Track 1 even when live npc_type_id (10178) differs from stored (10162)")
+    assert_eq(#client._companions, 1, "companion should be created via Track 1 name-match")
+end)
+
+test("V2-TDD-2: single-variant regression — existing behavior preserved when npc_type_id matches stored row", function()
+    -- When the spawned NPC has the same npc_type_id as the stored row, the name-based
+    -- query still returns the row correctly (name resolves to same string regardless).
+    -- This guards against the V2 change regressing the common single-variant case.
+    local stored_row = {
+        id = 18, level = 53, experience = 18707712, recruited_level = 20,
+        stance = 1, name = "Hollish Tnoops", companion_type = 0,
+        is_dismissed = 1, is_suspended = 0, npc_type_id = 9144,
+    }
+    Database = make_db_stub_multi(stored_row, nil)
+
+    local npc    = make_npc({ npc_type_id = 9144, name = "Hollish Tnoops", level = 30 })
+    local client = make_client({ char_id = 6, level = 35 })
+
+    companion.attempt_recruitment(npc, client)
+
+    assert_contains(last_say(npc), "remember",
+        "V2: single-variant name-match must still work (backward compat)")
+    assert_eq(#client._companions, 1, "companion should be created via Track 1 for single-variant NPC")
+end)
+
+test("V2-TDD-3: Q7 exclusion bypass guard — excluded target NPC blocked even when name-match finds a row", function()
+    -- Player previously recruited non-excluded Renux_Herkanor (npc_type_id=12032).
+    -- Player now approaches excluded sibling (npc_type_id=2033, same clean name).
+    -- V2 name-match fires Track 1 (finding the 12032 row by name).
+    -- Q7 mitigation: is_re_recruitment_eligible() must check companion_exclusions on the
+    -- TARGET NPC's npc_type_id (2033 is excluded) and block BEFORE short-circuiting.
+    --
+    -- PRE-FIX failure mode: the standard stub returns the row unconditionally, so
+    -- Track 1 fires but is_re_recruitment_eligible() has no exclusion check → companion
+    -- is created despite the exclusion. This test FAILS pre-fix (companion_count = 1)
+    -- and PASSES post-fix with Q7 step 6 (exclusion check blocks Track 1).
+    local stored_row = {
+        id = 5, level = 45, experience = 800000, recruited_level = 20,
+        stance = 1, name = "Renux Herkanor", companion_type = 0,
+        is_dismissed = 1, is_suspended = 0, npc_type_id = 12032,
+    }
+    -- Use make_db_stub_multi so the exclusion query also returns a row (target 2033 is excluded).
+    -- The companion_data lookup (name=? query) also returns the row unconditionally here
+    -- so Track 1 fires regardless of name vs ID query — exercising the Q7 exclusion guard.
+    local excl_row = { npc_type_id = 2033 }
+    -- Seed the row for ANY companion_data query (simulates DB finding a record by any predicate)
+    -- and seed the exclusion row for the companion_exclusions query.
+    Database = function()
+        return {
+            prepare = function(self, sql)
+                local is_excl = sql:find("companion_exclusions", 1, true) ~= nil
+                return {
+                    execute    = function(self, params) end,
+                    fetch_hash = function(self)
+                        if is_excl then return excl_row end
+                        return stored_row   -- companion_data query always finds the row
+                    end,
+                }
+            end,
+            close = function(self) end,
+        }
+    end
+
+    -- Target is excluded variant 2033 — same clean name as stored row for 12032
+    local npc    = make_npc({ npc_type_id = 2033, name = "Renux Herkanor", level = 30 })
+    local client = make_client({ char_id = 6, level = 35 })
+
+    companion.attempt_recruitment(npc, client)
+
+    -- Must NOT succeed: excluded NPC should be blocked
+    assert_eq(#client._companions, 0,
+        "Q7: excluded target NPC must be blocked even when Track 1 finds a prior companion row")
+    -- Must NOT say "I remember you" (that would mean the exclusion check was bypassed)
+    local said = last_say(npc)
+    assert_true(said == "" or not said:find("remember"),
+        "Q7: Track 1 must not complete for an excluded target NPC. Got: " .. tostring(said))
+end)
+
+-- ============================================================================
 -- Summary
 -- ============================================================================
 
