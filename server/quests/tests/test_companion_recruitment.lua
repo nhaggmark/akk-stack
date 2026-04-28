@@ -983,6 +983,143 @@ test("re-recruitment with is_suspended=1: no cooldown set on success (re-recruit
 end)
 
 -- ============================================================================
+-- TDD: pre-fix failing tests (AC-1, AC-2, AC-5, AC-8, AC-9)
+-- These tests FAIL against the buggy code and PASS after the one-character fix.
+-- Written before the fix per PRD AC-9.
+-- ============================================================================
+
+print("\n=== TDD: Pre-fix invariant tests (must fail before fix, pass after) ===\n")
+
+test("TDD-1: cmd_dismiss calls Dismiss(false) — not Dismiss(true)", function()
+    -- Stub npc with a Dismiss that records the argument passed.
+    -- Current code: npc:Dismiss(true)  → this test FAILS before the fix.
+    -- After fix:    npc:Dismiss(false) → this test passes.
+    local dismiss_arg = nil
+    local npc = make_npc({ npc_type_id = 9900 })
+    npc.Dismiss = function(self, permanent)
+        dismiss_arg = permanent
+    end
+    local client = make_client({ char_id = 99 })
+
+    companion.cmd_dismiss(npc, client, "")
+
+    assert_eq(dismiss_arg, false,
+        "cmd_dismiss must call npc:Dismiss(false) to preserve the companion_data row")
+end)
+
+test("TDD-2: cmd_dismiss preserves companion record — Dismiss(true) would delete it", function()
+    -- Verifies that cmd_dismiss does not use the permanent/SoulWipe overload.
+    -- We check by inspecting the argument: true = SoulWipe (row deleted), false = preserve.
+    -- This test is the direct evidence that the row-deletion bug is fixed.
+    local calls = {}
+    local npc = make_npc({ npc_type_id = 9901 })
+    npc.Dismiss = function(self, permanent)
+        calls[#calls + 1] = { permanent = permanent }
+    end
+    local client = make_client({ char_id = 99 })
+
+    companion.cmd_dismiss(npc, client, "")
+
+    assert_eq(#calls, 1, "Dismiss should be called exactly once")
+    assert_eq(calls[1].permanent, false,
+        "Dismiss(true) deletes the row (SoulWipe); Dismiss(false) preserves it — must be false")
+end)
+
+test("TDD-3: after cmd_dismiss(false), check_existing_companion_record finds the row", function()
+    -- Full-chain integration: Dismiss(false) preserves is_dismissed+is_suspended flags
+    -- so that check_existing_companion_record() returns the row on next attempt.
+    -- In the stub harness we can't drive the DB from the Dismiss call, so we verify
+    -- the Dismiss argument (false = preserve path → row stays) and confirm that a
+    -- pre-existing DB row is found and triggers Track 1.
+    local dismiss_was_false = false
+    local npc = make_npc({ npc_type_id = 9902 })
+    npc.Dismiss = function(self, permanent)
+        dismiss_was_false = (permanent == false)
+    end
+    local client = make_client({ char_id = 99 })
+
+    companion.cmd_dismiss(npc, client, "")
+    assert_eq(dismiss_was_false, true,
+        "Dismiss(false) must be called so the DB row is preserved by C++")
+
+    -- Now simulate the re-recruit attempt: DB has the preserved row
+    local fake_row = {
+        id = 99, level = 30, experience = 20000, recruited_level = 20,
+        stance = 1, name = "TestNPC", companion_type = 0,
+        is_dismissed = 1, is_suspended = 0,
+    }
+    Database = make_db_stub(fake_row)
+    local npc2 = make_npc({ npc_type_id = 9902 })
+    local client2 = make_client({ char_id = 99 })
+
+    companion.attempt_recruitment(npc2, client2)
+
+    assert_contains(last_say(npc2), "remember",
+        "re-recruit after Dismiss(false) must take Track 1 — 'I remember you'")
+    assert_eq(#client2._companions, 1, "companion should be created via Track 1")
+end)
+
+test("TDD-4: LevelRange fallback is 50 when rule returns nil — 4-level gap is allowed", function()
+    -- When Companions:LevelRange rule is absent/nil, fallback should be 50 (not 3).
+    -- With fallback=3: a player-NPC gap of 4 levels is blocked (4 > 3).
+    -- With fallback=50: a gap of 4 is allowed (4 < 50).
+    -- This test FAILS today (fallback=3 blocks 4-level gap) and passes after or-3→or-50 fix.
+    local orig = eq.get_rule
+    eq.get_rule = function(r)
+        if r == "Companions:LevelRange" then return nil end
+        return orig(r)
+    end
+
+    -- Player level 20, NPC level 24: gap = 4. No existing record → first-time track.
+    -- With fallback=3:  4 > 3 → blocked with "too far from your level"
+    -- With fallback=50: 4 < 50 → level check passes (may still fail persuasion roll)
+    local npc    = make_npc({ npc_type_id = 9903, level = 24 })
+    local client = make_client({ char_id = 99, level = 20 })
+
+    local ok, reason = companion.is_eligible_npc(npc, client)
+    eq.get_rule = orig
+
+    -- After fix: level check passes (gap 4 < fallback 50), so NOT blocked by level.
+    -- Before fix: level check fails (gap 4 > fallback 3) → reason contains "level".
+    -- We assert the reason does NOT contain "level" (level gate didn't fire).
+    if not ok and reason and reason:find("level") then
+        error("LevelRange fallback is too restrictive: 4-level gap blocked by fallback of 3. " ..
+              "Expected fallback of 50 (gap 4 < 50 should pass). Got: " .. tostring(reason), 2)
+    end
+    -- If ok=false for another reason (faction, bodytype, etc.) that's fine —
+    -- what matters is the level gate specifically didn't fire.
+end)
+
+test("TDD-5: check_existing_companion_record SQL includes ORDER BY for deterministic duplicate selection", function()
+    -- Architecture decision: add ORDER BY level DESC, experience DESC, id DESC before LIMIT 1
+    -- so that when ghost duplicate rows exist, the highest-investment row is selected.
+    -- This test captures the SQL string and asserts it contains ORDER BY.
+    -- FAILS today (no ORDER BY in current SQL) and passes after the fix.
+    local captured_sql = nil
+    local orig_Database = Database
+    Database = function()
+        return {
+            prepare = function(self, sql)
+                captured_sql = sql
+                return {
+                    execute   = function(self, params) end,
+                    fetch_hash = function(self) return nil end,
+                }
+            end,
+            close = function(self) end,
+        }
+    end
+
+    companion.check_existing_companion_record(9904, 99)
+    Database = orig_Database
+
+    assert_not_nil(captured_sql, "Database.prepare should have been called")
+    assert_true(captured_sql:find("ORDER BY") ~= nil,
+        "SQL must include ORDER BY for deterministic duplicate row selection. Got: " ..
+        tostring(captured_sql))
+end)
+
+-- ============================================================================
 -- Summary
 -- ============================================================================
 
