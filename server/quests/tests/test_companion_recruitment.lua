@@ -143,13 +143,19 @@ end
 -- ============================================================================
 -- Returns a Database() constructor that yields the given row from fetch_hash().
 -- Pass nil to simulate "no record found".
+-- companion_exclusions queries always return nil (no exclusions) so existing tests
+-- are unaffected by the Q7 exclusion check added in V2.
 local function make_db_stub(row)
     return function()
         return {
             prepare = function(self, sql)
+                local is_excl = sql:find("companion_exclusions", 1, true) ~= nil
                 return {
-                    execute   = function(self, params) end,
-                    fetch_hash = function(self) return row end,
+                    execute    = function(self, params) end,
+                    fetch_hash = function(self)
+                        if is_excl then return nil end  -- no exclusion by default
+                        return row
+                    end,
                 }
             end,
             close = function(self) end,
@@ -980,6 +986,274 @@ test("re-recruitment with is_suspended=1: no cooldown set on success (re-recruit
     -- No new cooldown should have been created (stale one deleted, no new one set)
     assert_nil(data_store["companion_cooldown_9003_42"],
                "no cooldown should exist after successful re-recruitment")
+end)
+
+-- ============================================================================
+-- TDD: pre-fix failing tests (AC-1, AC-2, AC-5, AC-8, AC-9)
+-- These tests FAIL against the buggy code and PASS after the one-character fix.
+-- Written before the fix per PRD AC-9.
+-- ============================================================================
+
+print("\n=== TDD: Pre-fix invariant tests (must fail before fix, pass after) ===\n")
+
+test("TDD-1: cmd_dismiss calls Dismiss(false) — not Dismiss(true)", function()
+    -- Stub npc with a Dismiss that records the argument passed.
+    -- Current code: npc:Dismiss(true)  → this test FAILS before the fix.
+    -- After fix:    npc:Dismiss(false) → this test passes.
+    local dismiss_arg = nil
+    local npc = make_npc({ npc_type_id = 9900 })
+    npc.Dismiss = function(self, permanent)
+        dismiss_arg = permanent
+    end
+    local client = make_client({ char_id = 99 })
+
+    companion.cmd_dismiss(npc, client, "")
+
+    assert_eq(dismiss_arg, false,
+        "cmd_dismiss must call npc:Dismiss(false) to preserve the companion_data row")
+end)
+
+test("TDD-2: cmd_dismiss preserves companion record — Dismiss(true) would delete it", function()
+    -- Verifies that cmd_dismiss does not use the permanent/SoulWipe overload.
+    -- We check by inspecting the argument: true = SoulWipe (row deleted), false = preserve.
+    -- This test is the direct evidence that the row-deletion bug is fixed.
+    local calls = {}
+    local npc = make_npc({ npc_type_id = 9901 })
+    npc.Dismiss = function(self, permanent)
+        calls[#calls + 1] = { permanent = permanent }
+    end
+    local client = make_client({ char_id = 99 })
+
+    companion.cmd_dismiss(npc, client, "")
+
+    assert_eq(#calls, 1, "Dismiss should be called exactly once")
+    assert_eq(calls[1].permanent, false,
+        "Dismiss(true) deletes the row (SoulWipe); Dismiss(false) preserves it — must be false")
+end)
+
+test("TDD-3: after cmd_dismiss(false), check_existing_companion_record finds the row", function()
+    -- Full-chain integration: Dismiss(false) preserves is_dismissed+is_suspended flags
+    -- so that check_existing_companion_record() returns the row on next attempt.
+    -- In the stub harness we can't drive the DB from the Dismiss call, so we verify
+    -- the Dismiss argument (false = preserve path → row stays) and confirm that a
+    -- pre-existing DB row is found and triggers Track 1.
+    local dismiss_was_false = false
+    local npc = make_npc({ npc_type_id = 9902 })
+    npc.Dismiss = function(self, permanent)
+        dismiss_was_false = (permanent == false)
+    end
+    local client = make_client({ char_id = 99 })
+
+    companion.cmd_dismiss(npc, client, "")
+    assert_eq(dismiss_was_false, true,
+        "Dismiss(false) must be called so the DB row is preserved by C++")
+
+    -- Now simulate the re-recruit attempt: DB has the preserved row
+    local fake_row = {
+        id = 99, level = 30, experience = 20000, recruited_level = 20,
+        stance = 1, name = "TestNPC", companion_type = 0,
+        is_dismissed = 1, is_suspended = 0,
+    }
+    Database = make_db_stub(fake_row)
+    local npc2 = make_npc({ npc_type_id = 9902 })
+    local client2 = make_client({ char_id = 99 })
+
+    companion.attempt_recruitment(npc2, client2)
+
+    assert_contains(last_say(npc2), "remember",
+        "re-recruit after Dismiss(false) must take Track 1 — 'I remember you'")
+    assert_eq(#client2._companions, 1, "companion should be created via Track 1")
+end)
+
+test("TDD-4: LevelRange fallback is 50 when rule returns nil — 4-level gap is allowed", function()
+    -- When Companions:LevelRange rule is absent/nil, fallback should be 50 (not 3).
+    -- With fallback=3: a player-NPC gap of 4 levels is blocked (4 > 3).
+    -- With fallback=50: a gap of 4 is allowed (4 < 50).
+    -- This test FAILS today (fallback=3 blocks 4-level gap) and passes after or-3→or-50 fix.
+    local orig = eq.get_rule
+    eq.get_rule = function(r)
+        if r == "Companions:LevelRange" then return nil end
+        return orig(r)
+    end
+
+    -- Player level 20, NPC level 24: gap = 4. No existing record → first-time track.
+    -- With fallback=3:  4 > 3 → blocked with "too far from your level"
+    -- With fallback=50: 4 < 50 → level check passes (may still fail persuasion roll)
+    local npc    = make_npc({ npc_type_id = 9903, level = 24 })
+    local client = make_client({ char_id = 99, level = 20 })
+
+    local ok, reason = companion.is_eligible_npc(npc, client)
+    eq.get_rule = orig
+
+    -- After fix: level check passes (gap 4 < fallback 50), so NOT blocked by level.
+    -- Before fix: level check fails (gap 4 > fallback 3) → reason contains "level".
+    -- We assert the reason does NOT contain "level" (level gate didn't fire).
+    if not ok and reason and reason:find("level") then
+        error("LevelRange fallback is too restrictive: 4-level gap blocked by fallback of 3. " ..
+              "Expected fallback of 50 (gap 4 < 50 should pass). Got: " .. tostring(reason), 2)
+    end
+    -- If ok=false for another reason (faction, bodytype, etc.) that's fine —
+    -- what matters is the level gate specifically didn't fire.
+end)
+
+test("TDD-5: check_existing_companion_record SQL includes ORDER BY for deterministic duplicate selection", function()
+    -- Architecture decision: add ORDER BY level DESC, experience DESC, id DESC before LIMIT 1
+    -- so that when ghost duplicate rows exist, the highest-investment row is selected.
+    -- This test captures the SQL string and asserts it contains ORDER BY.
+    -- FAILS today (no ORDER BY in current SQL) and passes after the fix.
+    local captured_sql = nil
+    local orig_Database = Database
+    Database = function()
+        return {
+            prepare = function(self, sql)
+                captured_sql = sql
+                return {
+                    execute   = function(self, params) end,
+                    fetch_hash = function(self) return nil end,
+                }
+            end,
+            close = function(self) end,
+        }
+    end
+
+    companion.check_existing_companion_record(9904, 99)
+    Database = orig_Database
+
+    assert_not_nil(captured_sql, "Database.prepare should have been called")
+    assert_true(captured_sql:find("ORDER BY") ~= nil,
+        "SQL must include ORDER BY for deterministic duplicate row selection. Got: " ..
+        tostring(captured_sql))
+end)
+
+-- ============================================================================
+-- V2 TDD: Multi-variant name-match + Q7 exclusion bypass guard
+-- These 3 tests FAIL against the current code (npc_type_id-based lookup) and
+-- must PASS after the V2 fix (name-based lookup + Q7 exclusion step).
+-- Written before the fix per PRD AC-9.
+-- ============================================================================
+
+print("\n=== V2 TDD: Multi-variant name-match + Q7 exclusion guard ===\n")
+
+-- make_db_stub_multi: dispatches on SQL content to support two queries in one test.
+--   name_row     : row returned when SQL contains "name = ?"  (companion_data lookup)
+--   exclusion_row: row returned when SQL contains "companion_exclusions"
+-- Returns nil for all other SQL (e.g. a legacy npc_type_id query whose params don't match).
+local function make_db_stub_multi(name_row, exclusion_row)
+    return function()
+        return {
+            prepare = function(self, sql)
+                local is_name_query    = sql:find("name = ?",         1, true) ~= nil
+                local is_excl_query    = sql:find("companion_exclusions", 1, true) ~= nil
+                return {
+                    execute    = function(self, params) end,
+                    fetch_hash = function(self)
+                        if is_excl_query then return exclusion_row end
+                        if is_name_query then return name_row end
+                        return nil
+                    end,
+                }
+            end,
+            close = function(self) end,
+        }
+    end
+end
+
+test("V2-TDD-1: multi-variant re-recruit — name match fires Track 1 when npc_type_id differs from stored row", function()
+    -- Stored row has npc_type_id=10162 but name='Lydl the Great'.
+    -- Targeted spawn is npc_type_id=10178 with same clean name.
+    -- Current code (npc_type_id-based) returns nil → Track 2 → level rejection.
+    -- After V2 fix (name-based) the row is found → Track 1 → "I remember you".
+    local stored_row = {
+        id = 10, level = 53, experience = 1500000, recruited_level = 20,
+        stance = 1, name = "Lydl the Great", companion_type = 0,
+        is_dismissed = 0, is_suspended = 1, npc_type_id = 10162,
+    }
+    -- Stub: returns stored_row for name query; no exclusion row
+    Database = make_db_stub_multi(stored_row, nil)
+
+    -- Player level 35, NPC level 2 — would fail level-range on Track 2 (first-time)
+    local npc    = make_npc({ npc_type_id = 10178, name = "Lydl the Great", level = 2 })
+    local client = make_client({ char_id = 6, level = 35 })
+
+    companion.attempt_recruitment(npc, client)
+
+    assert_contains(last_say(npc), "remember",
+        "V2: name-match should fire Track 1 even when live npc_type_id (10178) differs from stored (10162)")
+    assert_eq(#client._companions, 1, "companion should be created via Track 1 name-match")
+end)
+
+test("V2-TDD-2: single-variant regression — existing behavior preserved when npc_type_id matches stored row", function()
+    -- When the spawned NPC has the same npc_type_id as the stored row, the name-based
+    -- query still returns the row correctly (name resolves to same string regardless).
+    -- This guards against the V2 change regressing the common single-variant case.
+    local stored_row = {
+        id = 18, level = 53, experience = 18707712, recruited_level = 20,
+        stance = 1, name = "Hollish Tnoops", companion_type = 0,
+        is_dismissed = 1, is_suspended = 0, npc_type_id = 9144,
+    }
+    Database = make_db_stub_multi(stored_row, nil)
+
+    local npc    = make_npc({ npc_type_id = 9144, name = "Hollish Tnoops", level = 30 })
+    local client = make_client({ char_id = 6, level = 35 })
+
+    companion.attempt_recruitment(npc, client)
+
+    assert_contains(last_say(npc), "remember",
+        "V2: single-variant name-match must still work (backward compat)")
+    assert_eq(#client._companions, 1, "companion should be created via Track 1 for single-variant NPC")
+end)
+
+test("V2-TDD-3: Q7 exclusion bypass guard — excluded target NPC blocked even when name-match finds a row", function()
+    -- Player previously recruited non-excluded Renux_Herkanor (npc_type_id=12032).
+    -- Player now approaches excluded sibling (npc_type_id=2033, same clean name).
+    -- V2 name-match fires Track 1 (finding the 12032 row by name).
+    -- Q7 mitigation: is_re_recruitment_eligible() must check companion_exclusions on the
+    -- TARGET NPC's npc_type_id (2033 is excluded) and block BEFORE short-circuiting.
+    --
+    -- PRE-FIX failure mode: the standard stub returns the row unconditionally, so
+    -- Track 1 fires but is_re_recruitment_eligible() has no exclusion check → companion
+    -- is created despite the exclusion. This test FAILS pre-fix (companion_count = 1)
+    -- and PASSES post-fix with Q7 step 6 (exclusion check blocks Track 1).
+    local stored_row = {
+        id = 5, level = 45, experience = 800000, recruited_level = 20,
+        stance = 1, name = "Renux Herkanor", companion_type = 0,
+        is_dismissed = 1, is_suspended = 0, npc_type_id = 12032,
+    }
+    -- Use make_db_stub_multi so the exclusion query also returns a row (target 2033 is excluded).
+    -- The companion_data lookup (name=? query) also returns the row unconditionally here
+    -- so Track 1 fires regardless of name vs ID query — exercising the Q7 exclusion guard.
+    local excl_row = { npc_type_id = 2033 }
+    -- Seed the row for ANY companion_data query (simulates DB finding a record by any predicate)
+    -- and seed the exclusion row for the companion_exclusions query.
+    Database = function()
+        return {
+            prepare = function(self, sql)
+                local is_excl = sql:find("companion_exclusions", 1, true) ~= nil
+                return {
+                    execute    = function(self, params) end,
+                    fetch_hash = function(self)
+                        if is_excl then return excl_row end
+                        return stored_row   -- companion_data query always finds the row
+                    end,
+                }
+            end,
+            close = function(self) end,
+        }
+    end
+
+    -- Target is excluded variant 2033 — same clean name as stored row for 12032
+    local npc    = make_npc({ npc_type_id = 2033, name = "Renux Herkanor", level = 30 })
+    local client = make_client({ char_id = 6, level = 35 })
+
+    companion.attempt_recruitment(npc, client)
+
+    -- Must NOT succeed: excluded NPC should be blocked
+    assert_eq(#client._companions, 0,
+        "Q7: excluded target NPC must be blocked even when Track 1 finds a prior companion row")
+    -- Must NOT say "I remember you" (that would mean the exclusion check was bypassed)
+    local said = last_say(npc)
+    assert_true(said == "" or not said:find("remember"),
+        "Q7: Track 1 must not complete for an excluded target NPC. Got: " .. tostring(said))
 end)
 
 -- ============================================================================
